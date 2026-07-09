@@ -96,16 +96,68 @@
             <!-- 顶部导航 -->
             <div class="nav-bar">
                 <div class="nav-title">价值投资估值助手</div>
-                <div class="nav-right" onclick="handleLogout()">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M13 5L8 10L13 15M8 10H18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="rotate(180 13 10)"/>
-                    </svg>
-                    <span>退出</span>
+                <div class="nav-actions">
+                    <div class="nav-icon" onclick="openSettings()" title="AI设置">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                    </div>
+                    <div class="nav-right" onclick="handleLogout()">
+                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                            <path d="M13 5L8 10L13 15M8 10H18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="rotate(180 13 10)"/>
+                        </svg>
+                        <span>退出</span>
+                    </div>
                 </div>
             </div>
 
             <!-- 内容区 -->
             <div class="main-content">
+
+                <!-- ====== AI 智能分析 ====== -->
+                <div class="section">
+                    <div class="section-header">
+                        <span class="section-icon">🤖</span>
+                        <span class="section-title">AI 智能分析</span>
+                        <span class="badge badge-ai">DeepSeek</span>
+                    </div>
+                    <div class="card ai-card">
+                        <div class="ai-input-row">
+                            <input type="text" id="ai-company" class="text-input ai-input" placeholder="输入公司名称或股票代码，如：贵州茅台 / 600519" maxlength="50">
+                            <button class="btn-ai" id="btn-ai-analyze" onclick="analyzeCompany()">分析</button>
+                        </div>
+                        <div class="input-hint" style="margin-top:6px;">AI 将以巴菲特和段永平的投资理念，从护城河、财务、估值等维度深度分析。管理员已配置云端AI，所有用户可直接使用。</div>
+
+                        <!-- 加载状态 -->
+                        <div class="ai-loading hidden" id="ai-loading">
+                            <div class="ai-loading-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <span class="ai-loading-text">AI 正在深度分析中，请耐心等待...</span>
+                        </div>
+
+                        <!-- 分析结果 -->
+                        <div class="ai-result hidden" id="ai-result">
+                            <div class="ai-result-header">
+                                <span class="ai-company-name" id="ai-company-name"></span>
+                                <span class="ai-model-tag">DeepSeek</span>
+                            </div>
+                            <div class="ai-result-body" id="ai-result-body"></div>
+                            <div class="ai-result-footer">
+                                <span class="ai-disclaimer">⚠️ AI分析仅供参考，不构成投资建议。请结合估值工具自行判断。</span>
+                                <button class="btn-text" onclick="clearAiResult()">清除分析</button>
+                            </div>
+                        </div>
+
+                        <!-- 错误提示 -->
+                        <div class="ai-error hidden" id="ai-error">
+                            <div class="ai-error-icon">⚠️</div>
+                            <div class="ai-error-msg" id="ai-error-msg"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 参数输入卡片 -->
                 <div class="section">
                     <div class="section-header">
@@ -301,12 +353,53 @@
             </div>
         </div>
 
+        <!-- ==================== 设置弹窗 ==================== -->
+        <div class="modal-overlay hidden" id="modal-settings">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <span class="modal-title">AI 分析设置</span>
+                    <span class="modal-close" onclick="closeSettings()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <!-- 云端模式说明 -->
+                    <div class="ai-mode-info" id="settings-status-info">
+                        <div class="ai-mode-icon">☁️</div>
+                        <div class="ai-mode-text">
+                            <strong>云端共享模式</strong>
+                            <p>管理员已在服务器配置好 AI 服务，<br>所有注册用户可直接使用，无需任何设置。</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-divider">
+                        <span>个人 Key（可选，备用通道）</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label">DeepSeek API Key</label>
+                        <input type="password" id="settings-apikey" class="text-input" placeholder="留空则使用云端共享模式" maxlength="60">
+                        <div class="input-hint">
+                            如填写个人Key，将优先使用您自己的DeepSeek额度。获取地址：<a href="https://platform.deepseek.com/api_keys" target="_blank" class="link-text">DeepSeek开放平台</a>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">AI 模型（仅个人Key模式生效）</label>
+                        <select id="settings-model" class="text-input select-input">
+                            <option value="deepseek-chat">DeepSeek-V3 (推荐，综合能力强)</option>
+                            <option value="deepseek-reasoner">DeepSeek-R1 (深度推理，更慢但更深入)</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="saveSettings()">保存设置</button>
+                    <div class="modal-status" id="settings-status"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- ==================== Toast提示 ==================== -->
         <div class="toast hidden" id="toast"></div>
 
     </div>
 
-    <script src="supabase.min.js"></script>
-    <script src="app.js"></script>
+    <script src="supabase.min.js?v=2"></script>
+    <script src="app.js?v=2"></script>
 </body>
 </html>

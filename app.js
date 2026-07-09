@@ -525,6 +525,41 @@ async function initApp() {
             e.target.value = e.target.value.toUpperCase();
         });
     }
+
+    // ===== 估值参数实时更新（JS 事件监听，双保险） =====
+    // 数字输入框
+    var numberInputs = ['param-profit', 'param-shares', 'param-price'];
+    for (var i = 0; i < numberInputs.length; i++) {
+        var inputEl = document.getElementById(numberInputs[i]);
+        if (inputEl) {
+            inputEl.addEventListener('input', function() { calculate(); });
+            inputEl.addEventListener('change', function() { calculate(); });
+        }
+    }
+
+    // 滑块
+    var sliderConfigs = [
+        { id: 'param-growth', display: 'param-growth-display' },
+        { id: 'param-perpetual', display: 'param-perpetual-display' },
+        { id: 'param-riskfree', display: 'param-riskfree-display' },
+        { id: 'param-riskpremium', display: 'param-riskpremium-display' },
+        { id: 'param-margin', display: 'param-margin-display' }
+    ];
+    for (var j = 0; j < sliderConfigs.length; j++) {
+        (function(config) {
+            var sliderEl = document.getElementById(config.id);
+            if (sliderEl) {
+                sliderEl.addEventListener('input', function() {
+                    updateSliderDisplay(sliderEl, config.display);
+                    calculate();
+                });
+                sliderEl.addEventListener('change', function() {
+                    updateSliderDisplay(sliderEl, config.display);
+                    calculate();
+                });
+            }
+        })(sliderConfigs[j]);
+    }
 }
 
 // 启动
