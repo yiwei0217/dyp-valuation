@@ -695,14 +695,20 @@ html, body {
 
 .nav-icon {
     cursor: pointer;
-    opacity: 0.85;
-    transition: opacity 0.2s;
+    opacity: 0.9;
+    transition: opacity 0.2s, background 0.2s;
     display: flex;
     align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .nav-icon:hover, .nav-icon:active {
     opacity: 1;
+    background: rgba(255, 255, 255, 0.22);
 }
 
 .nav-right {
