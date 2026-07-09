@@ -9,8 +9,8 @@ const SUPABASE_URL = 'https://sgdcztoirqpuitjwdrzl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZGN6dG9pcnFwdWl0andkcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NTk4MzAsImV4cCI6MjA5OTEzNTgzMH0.8Ju0fe3iFGkP80Wqqx3QNhQWujQ8xr-Ai1LJHo2JYQM';
 
 // ==================== 状态标记 ====================
-let supabase = null;
-let useSupabase = false;  // 是否使用 Supabase（连不上则用 localStorage）
+var supabase = null;
+var useSupabase = false;  // 是否使用 Supabase（连不上则用 localStorage）
 
 // 轻量级 Supabase RPC 备用：直接用 fetch，不依赖 206KB 外部库
 function createRpcClient() {
@@ -531,7 +531,317 @@ async function initApp() {
 document.addEventListener('DOMContentLoaded', function() {
     initApp().catch(function(err) {
         console.error('App init error:', err);
-        // 兜底：直接显示登录页
         showScreen('login');
     });
 });
+
+// ==================== AI 智能分析 ====================
+
+// 边缘函数代理地址（管理员配置后所有人都能用）
+var AI_EDGE_FUNCTION_URL = 'https://sgdcztoirqpuitjwdrzl.supabase.co/functions/v1/ai-analyze';
+
+// 个人 API Key 备用存储
+var AI_KEYS = {
+    apiKey: 'dyp_ai_apikey',
+    model: 'dyp_ai_model'
+};
+
+function getAiConfig() {
+    return {
+        apiKey: localStorage.getItem(AI_KEYS.apiKey) || '',
+        model: localStorage.getItem(AI_KEYS.model) || 'deepseek-chat'
+    };
+}
+
+function saveAiConfig(apiKey, model) {
+    localStorage.setItem(AI_KEYS.apiKey, apiKey);
+    localStorage.setItem(AI_KEYS.model, model);
+}
+
+// 打开设置
+function openSettings() {
+    var config = getAiConfig();
+    document.getElementById('settings-apikey').value = config.apiKey;
+    document.getElementById('settings-model').value = config.model;
+    document.getElementById('settings-status').textContent = '';
+    document.getElementById('settings-status-info').classList.remove('hidden');
+    document.getElementById('modal-settings').classList.remove('hidden');
+}
+
+// 关闭设置
+function closeSettings() {
+    document.getElementById('modal-settings').classList.add('hidden');
+}
+
+// 保存设置
+function saveSettings() {
+    var apiKey = document.getElementById('settings-apikey').value.trim();
+    var model = document.getElementById('settings-model').value;
+
+    // 允许清空（使用边缘函数模式）
+    if (!apiKey) {
+        saveAiConfig('', model);
+        document.getElementById('settings-status').textContent = '✅ 已切换为云端模式（所有用户共用管理员配置）';
+        document.getElementById('settings-status').className = 'modal-status modal-status-success';
+        setTimeout(function() { closeSettings(); }, 1500);
+        return;
+    }
+    if (apiKey.indexOf('sk-') !== 0) {
+        document.getElementById('settings-status').textContent = 'API Key 格式错误，应以 sk- 开头';
+        document.getElementById('settings-status').className = 'modal-status modal-status-error';
+        return;
+    }
+
+    saveAiConfig(apiKey, model);
+    document.getElementById('settings-status').textContent = '✅ 已切换为个人 Key 模式（仅本设备生效）';
+    document.getElementById('settings-status').className = 'modal-status modal-status-success';
+    setTimeout(function() { closeSettings(); }, 1500);
+}
+
+// AI 分析主函数：优先边缘函数 → 兜底个人 Key
+async function analyzeCompany() {
+    var company = document.getElementById('ai-company').value.trim();
+    if (!company) {
+        showToast('请输入公司名称或股票代码');
+        return;
+    }
+
+    var loadingEl = document.getElementById('ai-loading');
+    var resultEl = document.getElementById('ai-result');
+    var errorEl = document.getElementById('ai-error');
+    var btnEl = document.getElementById('btn-ai-analyze');
+
+    loadingEl.classList.remove('hidden');
+    resultEl.classList.add('hidden');
+    errorEl.classList.add('hidden');
+    btnEl.disabled = true;
+    btnEl.textContent = '分析中...';
+
+    try {
+        var response;
+
+        // 策略1：优先走 Supabase 边缘函数（管理员配置后所有人都能用）
+        response = await callEdgeFunction(company);
+        if (response && !response.error) {
+            // 边缘函数成功
+            loadingEl.classList.add('hidden');
+            resultEl.classList.remove('hidden');
+            document.getElementById('ai-company-name').textContent = company;
+            document.getElementById('ai-result-body').innerHTML = formatAiResponse(response.content);
+            btnEl.disabled = false;
+            btnEl.textContent = '分析';
+            return;
+        }
+
+        // 策略2：边缘函数不通，尝试个人 API Key
+        var config = getAiConfig();
+        if (config.apiKey) {
+            response = await callDeepSeekDirect(config.apiKey, config.model, company);
+            if (response && !response.error) {
+                loadingEl.classList.add('hidden');
+                resultEl.classList.remove('hidden');
+                document.getElementById('ai-company-name').textContent = company;
+                document.getElementById('ai-result-body').innerHTML = formatAiResponse(response.content);
+                btnEl.disabled = false;
+                btnEl.textContent = '分析';
+                return;
+            }
+            throw new Error(response.error || '个人 Key 调用失败');
+        }
+
+        // 两个都不通
+        throw new Error('AI 服务暂不可用：云端未配置，且未设置个人 API Key。请联系管理员或点击右上角齿轮设置个人 Key。');
+
+    } catch (err) {
+        loadingEl.classList.add('hidden');
+        errorEl.classList.remove('hidden');
+        var errMsg = err.message || '未知错误';
+
+        if (errMsg.indexOf('401') !== -1 || errMsg.indexOf('Authentication') !== -1) {
+            errMsg = 'API Key 无效，请检查后重新设置';
+        } else if (errMsg.indexOf('429') !== -1) {
+            errMsg = 'API 调用频率超限或余额不足，请稍后再试';
+        } else if (errMsg.indexOf('timeout') !== -1 || errMsg.indexOf('abort') !== -1) {
+            errMsg = '请求超时，AI 分析需要较长时间，请重试';
+        } else if (errMsg.indexOf('Failed to fetch') !== -1 || errMsg.indexOf('NetworkError') !== -1) {
+            errMsg = '网络连接失败，请检查网络后重试';
+        }
+
+        document.getElementById('ai-error-msg').textContent = errMsg;
+    } finally {
+        btnEl.disabled = false;
+        btnEl.textContent = '分析';
+    }
+}
+
+// 策略1：调用 Supabase 边缘函数（管理员 Key，全员共享）
+function callEdgeFunction(company) {
+    return new Promise(function(resolve) {
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 95000);
+
+        fetch(AI_EDGE_FUNCTION_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                'apikey': SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({ company: company }),
+            signal: controller.signal
+        }).then(function(response) {
+            clearTimeout(timeoutId);
+            return response.json().then(function(data) {
+                if (!response.ok || data.error) {
+                    resolve({ error: data.error || ('HTTP ' + response.status) });
+                    return;
+                }
+                resolve({ content: data.content, error: null });
+            });
+        }).catch(function(err) {
+            clearTimeout(timeoutId);
+            resolve({ error: err.message || '边缘函数不可用' });
+        });
+    });
+}
+
+// 策略2：直连 DeepSeek（个人 API Key，备用）
+function callDeepSeekDirect(apiKey, model, company) {
+    return new Promise(function(resolve) {
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 95000);
+
+        fetch('https://api.deepseek.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + apiKey
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: [
+                    { role: 'system', content: '你是一位资深价值投资者，完全遵循巴菲特和段永平的投资哲学。请从商业模式护城河、财务健康、管理层、估值、风险等维度，深度分析用户指定的公司，给出综合评分和操作建议。用中文回答，结论明确。' },
+                    { role: 'user', content: '请分析：' + company }
+                ],
+                temperature: 0.6,
+                max_tokens: 4096,
+                stream: false
+            }),
+            signal: controller.signal
+        }).then(function(response) {
+            clearTimeout(timeoutId);
+            return response.json().then(function(data) {
+                if (!response.ok) {
+                    var errMsg = (data.error && data.error.message) ? data.error.message : ('HTTP ' + response.status);
+                    resolve({ error: errMsg });
+                    return;
+                }
+                if (data.choices && data.choices.length > 0) {
+                    resolve({ content: data.choices[0].message.content, error: null });
+                } else {
+                    resolve({ error: 'AI 返回数据为空' });
+                }
+            });
+        }).catch(function(err) {
+            clearTimeout(timeoutId);
+            resolve({ error: err.message || '网络错误' });
+        });
+    });
+}
+
+// 格式化 AI 回复（Markdown 简单渲染）
+function formatAiResponse(text) {
+    if (!text) return '<p>暂无分析结果</p>';
+
+    // 转义 HTML
+    var escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    var lines = escaped.split('\n');
+    var html = '';
+    var inList = false;
+    var inOrderedList = false;
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+
+        // 处理 ### 标题
+        var h3Match = line.match(/^###\s+(.+)/);
+        if (h3Match) {
+            if (inList) { html += '</ul>'; inList = false; }
+            if (inOrderedList) { html += '</ol>'; inOrderedList = false; }
+            html += '<h3 class="ai-h3">' + h3Match[1] + '</h3>';
+            continue;
+        }
+
+        // 处理 ## 标题
+        var h2Match = line.match(/^##\s+(.+)/);
+        if (h2Match) {
+            if (inList) { html += '</ul>'; inList = false; }
+            if (inOrderedList) { html += '</ol>'; inOrderedList = false; }
+            html += '<h2 class="ai-h2">' + h2Match[1] + '</h2>';
+            continue;
+        }
+
+        // 处理无序列表项
+        var ulMatch = line.match(/^[-*]\s+(.+)/);
+        if (ulMatch) {
+            if (!inList) { html += '<ul class="ai-ul">'; inList = true; }
+            if (inOrderedList) { html += '</ol>'; inOrderedList = false; }
+            html += '<li>' + formatInlineMarkdown(ulMatch[1]) + '</li>';
+            continue;
+        }
+
+        // 处理有序列表项
+        var olMatch = line.match(/^\d+[\.\)]\s+(.+)/);
+        if (olMatch) {
+            if (inList) { html += '</ul>'; inList = false; }
+            if (!inOrderedList) { html += '<ol class="ai-ol">'; inOrderedList = true; }
+            html += '<li>' + formatInlineMarkdown(olMatch[1]) + '</li>';
+            continue;
+        }
+
+        // 空行：关闭列表
+        if (line.trim() === '') {
+            if (inList) { html += '</ul>'; inList = false; }
+            if (inOrderedList) { html += '</ol>'; inOrderedList = false; }
+            html += '<br>';
+            continue;
+        }
+
+        // 普通段落
+        if (inList) { html += '</ul>'; inList = false; }
+        if (inOrderedList) { html += '</ol>'; inOrderedList = false; }
+        html += '<p class="ai-p">' + formatInlineMarkdown(line) + '</p>';
+    }
+
+    // 关闭未闭合的列表
+    if (inList) { html += '</ul>'; }
+    if (inOrderedList) { html += '</ol>'; }
+
+    return html;
+}
+
+// 行内 Markdown 格式化（加粗、代码）
+function formatInlineMarkdown(text) {
+    // 加粗 **text**
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    // 代码块（防止在已处理的 HTML 中出错）
+    text = text.replace(/`([^`]+)`/g, '<code class="ai-code">$1</code>');
+
+    // emoji 高亮 （🏆、📊、💡、⚠️ 等）
+    text = text.replace(/([🏆📊💡⚠️✅❌📈📉🔴🟢🟡])/g, '<span class="ai-emoji">$1</span>');
+
+    return text;
+}
+
+// 清除 AI 分析结果
+function clearAiResult() {
+    document.getElementById('ai-result').classList.add('hidden');
+    document.getElementById('ai-error').classList.add('hidden');
+    document.getElementById('ai-loading').classList.add('hidden');
+    document.getElementById('ai-company').value = '';
+}
