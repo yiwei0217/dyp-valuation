@@ -194,7 +194,7 @@
 
     <div class="toast hidden" id="toast"></div>
 
-    <script src="supabase.min.js"></script>
+    <script src="supabase.min.js" onerror="console.warn('supabase.min.js 加载失败，将使用 fetch 备用')"></script>
     <script>
         const SUPABASE_URL = 'https://sgdcztoirqpuitjwdrzl.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZGN6dG9pcnFwdWl0andkcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NTk4MzAsImV4cCI6MjA5OTEzNTgzMH0.8Ju0fe3iFGkP80Wqqx3QNhQWujQ8xr-Ai1LJHo2JYQM';
@@ -202,6 +202,38 @@
         var supabase = null;
         var supabaseReady = false;
         var ADMIN_KEY = 'valuation_admin_session';
+
+        // 轻量级 Supabase RPC 备用：直接用 fetch，不依赖外部库
+        function createRpcClient() {
+            return {
+                rpc: function(functionName, params) {
+                    return fetch(SUPABASE_URL + '/rest/v1/rpc/' + functionName, {
+                        method: 'POST',
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(params || {})
+                    }).then(function(response) {
+                        return response.text().then(function(text) {
+                            var data = null;
+                            if (text) {
+                                try { data = JSON.parse(text); } catch (e) { data = text; }
+                            }
+                            if (!response.ok) {
+                                var message = (data && data.message) ? data.message : ('请求失败 ' + response.status);
+                                return { data: null, error: { message: message } };
+                            }
+                            return { data: data, error: null };
+                        });
+                    }).catch(function(err) {
+                        return { data: null, error: { message: err.message || '网络错误' } };
+                    });
+                }
+            };
+        }
 
         // ====== SHA-256 ======
         async function sha256(text) {
@@ -383,19 +415,21 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Admin: DOM ready, initializing...');
 
-            // 1) 先初始化 Supabase
-            if (!window.supabase || !window.supabase.createClient) {
-                showToast('核心库加载失败，请刷新页面');
-                return;
-            }
-            try {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            // 1) 初始化 Supabase（优先用本地库，失败则使用 fetch 备用）
+            if (window.supabase && window.supabase.createClient) {
+                try {
+                    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    supabaseReady = true;
+                    console.log('Admin: using local supabase.min.js');
+                } catch (e) {
+                    console.warn('Admin: local supabase init failed, using fetch fallback', e);
+                    supabase = createRpcClient();
+                    supabaseReady = true;
+                }
+            } else {
+                console.warn('Admin: supabase.min.js not loaded, using fetch fallback');
+                supabase = createRpcClient();
                 supabaseReady = true;
-                console.log('Admin: Supabase ready');
-            } catch (e) {
-                console.error('Admin: Supabase init error', e);
-                showToast('初始化失败，请刷新重试');
-                return;
             }
 
             // 2) 绑定 Enter 键
