@@ -12,6 +12,38 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let supabase = null;
 let useSupabase = false;  // 是否使用 Supabase（连不上则用 localStorage）
 
+// 轻量级 Supabase RPC 备用：直接用 fetch，不依赖 206KB 外部库
+function createRpcClient() {
+    return {
+        rpc: function(functionName, params) {
+            return fetch(SUPABASE_URL + '/rest/v1/rpc/' + functionName, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(params || {})
+            }).then(function(response) {
+                return response.text().then(function(text) {
+                    var data = null;
+                    if (text) {
+                        try { data = JSON.parse(text); } catch (e) { data = text; }
+                    }
+                    if (!response.ok) {
+                        var message = (data && data.message) ? data.message : ('请求失败 ' + response.status);
+                        return { data: null, error: { message: message } };
+                    }
+                    return { data: data, error: null };
+                });
+            }).catch(function(err) {
+                return { data: null, error: { message: err.message || '网络错误' } };
+            });
+        }
+    };
+}
+
 // ==================== 工具函数 ====================
 
 function sha256(text) {
@@ -33,17 +65,6 @@ const STORAGE_KEYS = {
     localInvites: 'valuation_local_invites'
 };
 
-// ==================== 动态加载 Supabase CDN ====================
-function loadSupabaseCDN() {
-    return new Promise(function(resolve) {
-        var script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
-        script.onload = function() { resolve(true); };
-        script.onerror = function() { resolve(false); };
-        document.head.appendChild(script);
-    });
-}
-
 // ==================== 初始化 Supabase ====================
 async function initSupabase() {
     // index.html 已优先加载本地 supabase.min.js
@@ -58,22 +79,19 @@ async function initSupabase() {
         }
     }
 
-    // 本地未加载成功，再尝试 CDN
-    var cdnLoaded = await loadSupabaseCDN();
-    if (!cdnLoaded) {
-        console.warn('Supabase CDN failed to load, using localStorage');
-        return false;
-    }
-
+    // 本地库未加载/解析失败，使用轻量级 fetch 备用
+    console.warn('Supabase.min.js not loaded, using fetch RPC fallback');
     try {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabase = createRpcClient();
         useSupabase = true;
-        console.log('Supabase connected via CDN');
+        console.log('Supabase connected via fetch fallback');
         return true;
     } catch(e) {
-        console.warn('Supabase init error:', e.message);
-        return false;
+        console.warn('Fetch fallback error:', e.message);
     }
+
+    console.warn('Supabase unavailable, using localStorage');
+    return false;
 }
 
 // ==================== 会话管理 ====================
