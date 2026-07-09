@@ -5,8 +5,8 @@
  */
 
 // ==================== Supabase 配置 ====================
-const SUPABASE_URL = 'https://ufiqbjriueqchbkvnwr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmaXFianJiaXVlcWNoYmt2bndyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDcwMjUsImV4cCI6MjA5OTEyMzAyNX0.e4o37LSsc8cdlXsClvqoUC9TO3UNMlc6sr7sm-CYU6Y';
+const SUPABASE_URL = 'https://sgdcztoirqpuitjwdrzl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZGN6dG9pcnFwdWl0andkcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NTk4MzAsImV4cCI6MjA5OTEzNTgzMH0.8Ju0fe3iFGkP80Wqqx3QNhQWujQ8xr-Ai1LJHo2JYQM';
 
 // ==================== 状态标记 ====================
 let supabase = null;
