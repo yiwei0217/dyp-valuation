@@ -199,59 +199,21 @@
         const SUPABASE_URL = 'https://sgdcztoirqpuitjwdrzl.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZGN6dG9pcnFwdWl0andkcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NTk4MzAsImV4cCI6MjA5OTEzNTgzMH0.8Ju0fe3iFGkP80Wqqx3QNhQWujQ8xr-Ai1LJHo2JYQM';
 
-        let supabase = null;
-        let supabaseReady = false;
-        const ADMIN_KEY = 'valuation_admin_session';
+        var supabase = null;
+        var supabaseReady = false;
+        var ADMIN_KEY = 'valuation_admin_session';
 
-        // 页面加载完成后初始化 Supabase
-        document.addEventListener('DOMContentLoaded', function() {
-            if (window.supabase && window.supabase.createClient) {
-                try {
-                    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                    supabaseReady = true;
-                    console.log('Admin: Supabase connected');
-                    checkExistingSession();
-                } catch(e) {
-                    console.error('Admin: Supabase init error', e);
-                    showToast('初始化失败，请刷新页面重试');
-                }
-            } else {
-                showToast('Supabase 库未加载，请刷新页面重试');
-            }
-        });
-
-        // 检查已有会话
-        async function checkExistingSession() {
-            var session = localStorage.getItem(ADMIN_KEY);
-            if (!session) return;
-            try {
-                var parsed = JSON.parse(session);
-                if (!parsed || !parsed.username || !parsed.passwordHash) return;
-                var { data, error } = await supabase.rpc('admin_login', {
-                    p_username: parsed.username,
-                    p_password_hash: parsed.passwordHash
-                });
-                if (error) throw error;
-                if (data === true) {
-                    document.getElementById('admin-name').textContent = parsed.username;
-                    showScreen('admin-panel');
-                    loadData();
-                }
-            } catch (e) {
-                console.warn('Admin: auto login failed', e);
-                localStorage.removeItem(ADMIN_KEY);
-            }
-        }
-
+        // ====== SHA-256 ======
         async function sha256(text) {
             if (!text) return '';
-            const encoder = new TextEncoder();
-            const data = encoder.encode(text);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            var encoder = new TextEncoder();
+            var data = encoder.encode(text);
+            var hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            var hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
         }
 
+        // ====== Toast ======
         function showToast(message, duration) {
             duration = duration || 2000;
             var toast = document.getElementById('toast');
@@ -262,43 +224,46 @@
             }, duration);
         }
 
+        // ====== 显示/隐藏屏幕 ======
+        function showScreen(id) {
+            document.getElementById('admin-login').classList.add('hidden');
+            document.getElementById('admin-panel').classList.add('hidden');
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        // ====== 管理员登录 ======
         async function adminLogin() {
             if (!supabaseReady || !supabase) {
-                showToast('Supabase 尚未初始化，请刷新页面重试');
+                showToast('系统初始化中，请稍后再试');
                 return;
             }
-
             var username = document.getElementById('admin-username').value.trim();
             var password = document.getElementById('admin-password').value.trim();
-
             if (!username || !password) {
                 showToast('请输入用户名和密码');
                 return;
             }
-
             showToast('登录中...', 10000);
-
             try {
                 var passwordHash = await sha256(password);
-                var { data, error } = await supabase.rpc('admin_login', {
+                var result = await supabase.rpc('admin_login', {
                     p_username: username,
                     p_password_hash: passwordHash
                 });
-
-                if (error) throw error;
-
-                if (data === true) {
+                if (result.error) throw result.error;
+                if (result.data === true) {
                     localStorage.setItem(ADMIN_KEY, JSON.stringify({
                         username: username,
                         passwordHash: passwordHash
                     }));
+                    document.getElementById('admin-name').textContent = username;
                     showScreen('admin-panel');
                     loadData();
                 } else {
                     showToast('用户名或密码错误');
                 }
             } catch (err) {
-                console.error(err);
+                console.error('Login error:', err);
                 showToast('登录失败：' + (err.message || '网络错误'));
             }
         }
@@ -309,12 +274,7 @@
             document.getElementById('admin-password').value = '';
         }
 
-        function showScreen(id) {
-            document.getElementById('admin-login').classList.add('hidden');
-            document.getElementById('admin-panel').classList.add('hidden');
-            document.getElementById(id).classList.remove('hidden');
-        }
-
+        // ====== 加载数据 ======
         async function loadData() {
             await loadInviteCodes();
             await loadUsers();
@@ -322,38 +282,30 @@
 
         async function loadInviteCodes() {
             try {
-                var { data, error } = await supabase.rpc('get_invite_codes');
-                if (error) throw error;
-
+                var result = await supabase.rpc('get_invite_codes');
+                if (result.error) throw result.error;
+                var data = result.data;
                 var container = document.getElementById('invite-list');
                 if (!data || data.length === 0) {
                     container.innerHTML = '<div class="empty-state">暂无邀请码</div>';
                     document.getElementById('invite-count').textContent = '共 0 个';
                     return;
                 }
-
                 var usedCount = data.filter(function(c) { return c.is_used; }).length;
                 document.getElementById('invite-count').textContent = '共 ' + data.length + ' 个，已用 ' + usedCount + ' 个';
-
                 var html = '<table class="admin-table"><thead><tr>';
                 html += '<th>邀请码</th><th>状态</th><th>使用者</th><th>使用时间</th><th>操作</th>';
                 html += '</tr></thead><tbody>';
-
                 for (var i = 0; i < data.length; i++) {
                     var c = data[i];
-                    var statusClass = c.is_used ? 'status-used' : 'status-unused';
-                    var statusText = c.is_used ? '已使用' : '未使用';
-                    var usedAt = c.used_at ? new Date(c.used_at).toLocaleString('zh-CN') : '-';
-                    var usedBy = c.used_by || '-';
                     html += '<tr>';
                     html += '<td><strong>' + c.code + '</strong></td>';
-                    html += '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>';
-                    html += '<td>' + usedBy + '</td>';
-                    html += '<td>' + usedAt + '</td>';
+                    html += '<td><span class="status-badge ' + (c.is_used ? 'status-used' : 'status-unused') + '">' + (c.is_used ? '已使用' : '未使用') + '</span></td>';
+                    html += '<td>' + (c.used_by || '-') + '</td>';
+                    html += '<td>' + (c.used_at ? new Date(c.used_at).toLocaleString('zh-CN') : '-') + '</td>';
                     html += '<td><button class="admin-btn admin-btn-danger" onclick="deleteInviteCode(\'' + c.code + '\')">删除</button></td>';
                     html += '</tr>';
                 }
-
                 html += '</tbody></table>';
                 container.innerHTML = html;
             } catch (err) {
@@ -364,32 +316,27 @@
 
         async function loadUsers() {
             try {
-                var { data, error } = await supabase.rpc('get_users');
-                if (error) throw error;
-
+                var result = await supabase.rpc('get_users');
+                if (result.error) throw result.error;
+                var data = result.data;
                 var container = document.getElementById('user-list');
                 if (!data || data.length === 0) {
                     container.innerHTML = '<div class="empty-state">暂无注册用户</div>';
                     document.getElementById('user-count').textContent = '共 0 人';
                     return;
                 }
-
                 document.getElementById('user-count').textContent = '共 ' + data.length + ' 人';
-
                 var html = '<table class="admin-table"><thead><tr>';
                 html += '<th>用户名</th><th>使用邀请码</th><th>注册时间</th>';
                 html += '</tr></thead><tbody>';
-
                 for (var i = 0; i < data.length; i++) {
                     var u = data[i];
-                    var createdAt = u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '-';
                     html += '<tr>';
                     html += '<td>' + u.username + '</td>';
                     html += '<td>' + u.invite_code + '</td>';
-                    html += '<td>' + createdAt + '</td>';
+                    html += '<td>' + (u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '-') + '</td>';
                     html += '</tr>';
                 }
-
                 html += '</tbody></table>';
                 container.innerHTML = html;
             } catch (err) {
@@ -401,24 +348,12 @@
         async function createInviteCode() {
             var input = document.getElementById('new-invite-code');
             var code = input.value.trim();
-
-            if (!code) {
-                showToast('请输入邀请码');
-                return;
-            }
-            if (code.length < 4) {
-                showToast('邀请码至少4位');
-                return;
-            }
-
+            if (!code) { showToast('请输入邀请码'); return; }
+            if (code.length < 4) { showToast('邀请码至少4位'); return; }
             try {
-                var { data, error } = await supabase.rpc('create_invite_code', {
-                    p_code: code
-                });
-
-                if (error) throw error;
-
-                if (data === true) {
+                var result = await supabase.rpc('create_invite_code', { p_code: code });
+                if (result.error) throw result.error;
+                if (result.data === true) {
                     showToast('邀请码创建成功');
                     input.value = '';
                     await loadInviteCodes();
@@ -432,16 +367,10 @@
         }
 
         async function deleteInviteCode(code) {
-            if (!confirm('确定要删除邀请码 ' + code + ' 吗？')) {
-                return;
-            }
-
+            if (!confirm('确定要删除邀请码 ' + code + ' 吗？')) return;
             try {
-                var { data, error } = await supabase.rpc('delete_invite_code', {
-                    p_code: code
-                });
-
-                if (error) throw error;
+                var result = await supabase.rpc('delete_invite_code', { p_code: code });
+                if (result.error) throw result.error;
                 showToast('删除成功');
                 await loadInviteCodes();
             } catch (err) {
@@ -450,23 +379,77 @@
             }
         }
 
-        // 初始化
+        // ====== 统一初始化（仅一个 DOMContentLoaded） ======
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('Admin: DOM ready, initializing...');
+
+            // 1) 先初始化 Supabase
+            if (!window.supabase || !window.supabase.createClient) {
+                showToast('核心库加载失败，请刷新页面');
+                return;
+            }
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                supabaseReady = true;
+                console.log('Admin: Supabase ready');
+            } catch (e) {
+                console.error('Admin: Supabase init error', e);
+                showToast('初始化失败，请刷新重试');
+                return;
+            }
+
+            // 2) 绑定 Enter 键
+            var pwdInput = document.getElementById('admin-password');
+            if (pwdInput) {
+                pwdInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') adminLogin();
+                });
+            }
+            var codeInput = document.getElementById('new-invite-code');
+            if (codeInput) {
+                codeInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') createInviteCode();
+                });
+            }
+
+            // 3) 尝试自动登录
             var session = localStorage.getItem(ADMIN_KEY);
             if (session) {
-                showScreen('admin-panel');
-                loadData();
+                try {
+                    var parsed = JSON.parse(session);
+                    if (parsed && parsed.username && parsed.passwordHash) {
+                        console.log('Admin: trying auto-login...');
+                        supabase.rpc('admin_login', {
+                            p_username: parsed.username,
+                            p_password_hash: parsed.passwordHash
+                        }).then(function(result) {
+                            if (result.error) throw result.error;
+                            if (result.data === true) {
+                                console.log('Admin: auto-login success');
+                                document.getElementById('admin-name').textContent = parsed.username;
+                                showScreen('admin-panel');
+                                loadData();
+                            } else {
+                                localStorage.removeItem(ADMIN_KEY);
+                                showScreen('admin-login');
+                            }
+                        }).catch(function(e) {
+                            console.warn('Admin: auto-login failed', e);
+                            localStorage.removeItem(ADMIN_KEY);
+                            showScreen('admin-login');
+                        });
+                    } else {
+                        showScreen('admin-login');
+                    }
+                } catch (e) {
+                    localStorage.removeItem(ADMIN_KEY);
+                    showScreen('admin-login');
+                }
             } else {
                 showScreen('admin-login');
             }
 
-            document.getElementById('admin-password').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') adminLogin();
-            });
-
-            document.getElementById('new-invite-code').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') createInviteCode();
-            });
+            console.log('Admin: init complete, ready for login');
         });
     </script>
 </body>
