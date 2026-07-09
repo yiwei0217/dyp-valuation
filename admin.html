@@ -194,13 +194,54 @@
 
     <div class="toast hidden" id="toast"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="supabase.min.js"></script>
     <script>
         const SUPABASE_URL = 'https://sgdcztoirqpuitjwdrzl.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZGN6dG9pcnFwdWl0andkcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NTk4MzAsImV4cCI6MjA5OTEzNTgzMH0.8Ju0fe3iFGkP80Wqqx3QNhQWujQ8xr-Ai1LJHo2JYQM';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        let supabase = null;
+        let supabaseReady = false;
         const ADMIN_KEY = 'valuation_admin_session';
+
+        // 页面加载完成后初始化 Supabase
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.supabase && window.supabase.createClient) {
+                try {
+                    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    supabaseReady = true;
+                    console.log('Admin: Supabase connected');
+                    checkExistingSession();
+                } catch(e) {
+                    console.error('Admin: Supabase init error', e);
+                    showToast('初始化失败，请刷新页面重试');
+                }
+            } else {
+                showToast('Supabase 库未加载，请刷新页面重试');
+            }
+        });
+
+        // 检查已有会话
+        async function checkExistingSession() {
+            var session = localStorage.getItem(ADMIN_KEY);
+            if (!session) return;
+            try {
+                var parsed = JSON.parse(session);
+                if (!parsed || !parsed.username || !parsed.passwordHash) return;
+                var { data, error } = await supabase.rpc('admin_login', {
+                    p_username: parsed.username,
+                    p_password_hash: parsed.passwordHash
+                });
+                if (error) throw error;
+                if (data === true) {
+                    document.getElementById('admin-name').textContent = parsed.username;
+                    showScreen('admin-panel');
+                    loadData();
+                }
+            } catch (e) {
+                console.warn('Admin: auto login failed', e);
+                localStorage.removeItem(ADMIN_KEY);
+            }
+        }
 
         async function sha256(text) {
             if (!text) return '';
@@ -222,6 +263,11 @@
         }
 
         async function adminLogin() {
+            if (!supabaseReady || !supabase) {
+                showToast('Supabase 尚未初始化，请刷新页面重试');
+                return;
+            }
+
             var username = document.getElementById('admin-username').value.trim();
             var password = document.getElementById('admin-password').value.trim();
 

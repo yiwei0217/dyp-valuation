@@ -46,8 +46,20 @@ function loadSupabaseCDN() {
 
 // ==================== 初始化 Supabase ====================
 async function initSupabase() {
-    var cdnLoaded = await loadSupabaseCDN();
+    // index.html 已优先加载本地 supabase.min.js
+    if (window.supabase && window.supabase.createClient) {
+        try {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            useSupabase = true;
+            console.log('Supabase connected');
+            return true;
+        } catch(e) {
+            console.warn('Supabase init error:', e.message);
+        }
+    }
 
+    // 本地未加载成功，再尝试 CDN
+    var cdnLoaded = await loadSupabaseCDN();
     if (!cdnLoaded) {
         console.warn('Supabase CDN failed to load, using localStorage');
         return false;
@@ -56,7 +68,7 @@ async function initSupabase() {
     try {
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         useSupabase = true;
-        console.log('Supabase connected');
+        console.log('Supabase connected via CDN');
         return true;
     } catch(e) {
         console.warn('Supabase init error:', e.message);
