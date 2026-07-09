@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>管理后台 - 价值投资估值助手</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .admin-container {
+            max-width: 680px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .admin-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        .admin-subtitle {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 24px;
+        }
+        .admin-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+        .admin-card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .admin-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .admin-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #e5e5e5;
+            border-radius: 10px;
+            font-size: 15px;
+            outline: none;
+        }
+        .admin-input:focus {
+            border-color: #1B4F8C;
+        }
+        .admin-btn {
+            padding: 12px 20px;
+            background: #1B4F8C;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .admin-btn:active {
+            opacity: 0.9;
+        }
+        .admin-btn-danger {
+            background: #dc3545;
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 6px;
+        }
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .admin-table th {
+            text-align: left;
+            padding: 10px 8px;
+            color: #666;
+            font-weight: 500;
+            border-bottom: 1px solid #eee;
+        }
+        .admin-table td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #f5f5f5;
+            color: #333;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-used {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .status-unused {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            font-size: 14px;
+        }
+        .admin-link {
+            display: inline-block;
+            margin-top: 16px;
+            color: #1B4F8C;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .logout-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .logout-bar button {
+            background: #f5f5f5;
+            color: #666;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div id="admin-login">
+            <div class="admin-title">管理后台</div>
+            <div class="admin-subtitle">价值投资估值助手 · 邀请码与用户管理</div>
+
+            <div class="admin-card">
+                <div class="admin-card-title">管理员登录</div>
+                <div class="input-group" style="margin-bottom: 14px;">
+                    <label class="input-label">用户名</label>
+                    <input type="text" id="admin-username" class="text-input" placeholder="admin" value="admin">
+                </div>
+                <div class="input-group" style="margin-bottom: 20px;">
+                    <label class="input-label">密码</label>
+                    <input type="password" id="admin-password" class="text-input" placeholder="请输入管理员密码">
+                </div>
+                <button class="btn-primary" onclick="adminLogin()" style="width: 100%;">登 录</button>
+                <a href="index.html" class="admin-link">← 返回应用</a>
+            </div>
+        </div>
+
+        <div id="admin-panel" class="hidden">
+            <div class="logout-bar">
+                <div>
+                    <div class="admin-title">管理后台</div>
+                    <div class="admin-subtitle">已登录：<span id="admin-name">admin</span></div>
+                </div>
+                <button onclick="adminLogout()">退出</button>
+            </div>
+
+            <div class="admin-card">
+                <div class="admin-card-title">
+                    邀请码管理
+                    <span id="invite-count" style="font-size: 13px; color: #888; font-weight: 400;"></span>
+                </div>
+                <div class="admin-input-group">
+                    <input type="text" id="new-invite-code" class="admin-input" placeholder="输入新邀请码（如 VALUE2）" maxlength="10">
+                    <button class="admin-btn" onclick="createInviteCode()">新增</button>
+                </div>
+                <div id="invite-list">
+                    <div class="empty-state">加载中...</div>
+                </div>
+            </div>
+
+            <div class="admin-card">
+                <div class="admin-card-title">
+                    注册用户
+                    <span id="user-count" style="font-size: 13px; color: #888; font-weight: 400;"></span>
+                </div>
+                <div id="user-list">
+                    <div class="empty-state">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast hidden" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script>
+        const SUPABASE_URL = 'https://ufiqbjriueqchbkvnwr.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmaXFianJiaXVlcWNoYmt2bndyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDcwMjUsImV4cCI6MjA5OTEyMzAyNX0.e4o37LSsc8cdlXsClvqoUC9TO3UNMlc6sr7sm-CYU6Y';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const ADMIN_KEY = 'valuation_admin_session';
+
+        async function sha256(text) {
+            if (!text) return '';
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function showToast(message, duration) {
+            duration = duration || 2000;
+            var toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(function() {
+                toast.classList.add('hidden');
+            }, duration);
+        }
+
+        async function adminLogin() {
+            var username = document.getElementById('admin-username').value.trim();
+            var password = document.getElementById('admin-password').value.trim();
+
+            if (!username || !password) {
+                showToast('请输入用户名和密码');
+                return;
+            }
+
+            showToast('登录中...', 10000);
+
+            try {
+                var passwordHash = await sha256(password);
+                var { data, error } = await supabase.rpc('admin_login', {
+                    p_username: username,
+                    p_password_hash: passwordHash
+                });
+
+                if (error) throw error;
+
+                if (data === true) {
+                    localStorage.setItem(ADMIN_KEY, JSON.stringify({
+                        username: username,
+                        passwordHash: passwordHash
+                    }));
+                    showScreen('admin-panel');
+                    loadData();
+                } else {
+                    showToast('用户名或密码错误');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('登录失败：' + (err.message || '网络错误'));
+            }
+        }
+
+        function adminLogout() {
+            localStorage.removeItem(ADMIN_KEY);
+            showScreen('admin-login');
+            document.getElementById('admin-password').value = '';
+        }
+
+        function showScreen(id) {
+            document.getElementById('admin-login').classList.add('hidden');
+            document.getElementById('admin-panel').classList.add('hidden');
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        async function loadData() {
+            await loadInviteCodes();
+            await loadUsers();
+        }
+
+        async function loadInviteCodes() {
+            try {
+                var { data, error } = await supabase.rpc('get_invite_codes');
+                if (error) throw error;
+
+                var container = document.getElementById('invite-list');
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="empty-state">暂无邀请码</div>';
+                    document.getElementById('invite-count').textContent = '共 0 个';
+                    return;
+                }
+
+                var usedCount = data.filter(function(c) { return c.is_used; }).length;
+                document.getElementById('invite-count').textContent = '共 ' + data.length + ' 个，已用 ' + usedCount + ' 个';
+
+                var html = '<table class="admin-table"><thead><tr>';
+                html += '<th>邀请码</th><th>状态</th><th>使用者</th><th>使用时间</th><th>操作</th>';
+                html += '</tr></thead><tbody>';
+
+                for (var i = 0; i < data.length; i++) {
+                    var c = data[i];
+                    var statusClass = c.is_used ? 'status-used' : 'status-unused';
+                    var statusText = c.is_used ? '已使用' : '未使用';
+                    var usedAt = c.used_at ? new Date(c.used_at).toLocaleString('zh-CN') : '-';
+                    var usedBy = c.used_by || '-';
+                    html += '<tr>';
+                    html += '<td><strong>' + c.code + '</strong></td>';
+                    html += '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>';
+                    html += '<td>' + usedBy + '</td>';
+                    html += '<td>' + usedAt + '</td>';
+                    html += '<td><button class="admin-btn admin-btn-danger" onclick="deleteInviteCode(\'' + c.code + '\')">删除</button></td>';
+                    html += '</tr>';
+                }
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (err) {
+                console.error(err);
+                document.getElementById('invite-list').innerHTML = '<div class="empty-state">加载失败：' + err.message + '</div>';
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                var { data, error } = await supabase.rpc('get_users');
+                if (error) throw error;
+
+                var container = document.getElementById('user-list');
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="empty-state">暂无注册用户</div>';
+                    document.getElementById('user-count').textContent = '共 0 人';
+                    return;
+                }
+
+                document.getElementById('user-count').textContent = '共 ' + data.length + ' 人';
+
+                var html = '<table class="admin-table"><thead><tr>';
+                html += '<th>用户名</th><th>使用邀请码</th><th>注册时间</th>';
+                html += '</tr></thead><tbody>';
+
+                for (var i = 0; i < data.length; i++) {
+                    var u = data[i];
+                    var createdAt = u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '-';
+                    html += '<tr>';
+                    html += '<td>' + u.username + '</td>';
+                    html += '<td>' + u.invite_code + '</td>';
+                    html += '<td>' + createdAt + '</td>';
+                    html += '</tr>';
+                }
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (err) {
+                console.error(err);
+                document.getElementById('user-list').innerHTML = '<div class="empty-state">加载失败：' + err.message + '</div>';
+            }
+        }
+
+        async function createInviteCode() {
+            var input = document.getElementById('new-invite-code');
+            var code = input.value.trim();
+
+            if (!code) {
+                showToast('请输入邀请码');
+                return;
+            }
+            if (code.length < 4) {
+                showToast('邀请码至少4位');
+                return;
+            }
+
+            try {
+                var { data, error } = await supabase.rpc('create_invite_code', {
+                    p_code: code
+                });
+
+                if (error) throw error;
+
+                if (data === true) {
+                    showToast('邀请码创建成功');
+                    input.value = '';
+                    await loadInviteCodes();
+                } else {
+                    showToast('邀请码已存在');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('创建失败：' + (err.message || '网络错误'));
+            }
+        }
+
+        async function deleteInviteCode(code) {
+            if (!confirm('确定要删除邀请码 ' + code + ' 吗？')) {
+                return;
+            }
+
+            try {
+                var { data, error } = await supabase.rpc('delete_invite_code', {
+                    p_code: code
+                });
+
+                if (error) throw error;
+                showToast('删除成功');
+                await loadInviteCodes();
+            } catch (err) {
+                console.error(err);
+                showToast('删除失败：' + (err.message || '网络错误'));
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            var session = localStorage.getItem(ADMIN_KEY);
+            if (session) {
+                showScreen('admin-panel');
+                loadData();
+            } else {
+                showScreen('admin-login');
+            }
+
+            document.getElementById('admin-password').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') adminLogin();
+            });
+
+            document.getElementById('new-invite-code').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') createInviteCode();
+            });
+        });
+    </script>
+</body>
+</html>

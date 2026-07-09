@@ -1,40 +1,35 @@
 /**
  * 价值投资估值助手 - 应用逻辑
- * 基于段永平和巴菲特10年现金流折现估值模型
+ * 基于段永平10年现金流折现估值模型
+ * 后端：Supabase
  */
 
-// ==================== 邀请码系统 ====================
-// 预设有效邀请码（每个仅可使用一次）
-const VALID_INVITE_CODES = ['ZS2026', 'VALUE1', 'DUANYP', 'ZJJM66', 'BUFFET'];
+// ==================== Supabase 配置 ====================
+// 请替换为你自己的 Supabase 项目信息
+const SUPABASE_URL = 'https://ufiqbjriueqchbkvnwr.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmaXFianJiaXVlcWNoYmt2bndyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDcwMjUsImV4cCI6MjA5OTEyMzAyNX0.e4o37LSsc8cdlXsClvqoUC9TO3UNMlc6sr7sm-CYU6Y';
 
-// localStorage 键名
+// 初始化 Supabase 客户端
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ==================== 工具函数 ====================
+
+// SHA-256 哈希（用于密码）
+async function sha256(text) {
+    if (!text) return '';
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// localStorage 键名（仅用于保存当前登录会话）
 const STORAGE_KEYS = {
-    users: 'dyp_valuation_users',
-    usedCodes: 'dyp_valuation_used_codes',
-    currentUser: 'dyp_valuation_current_user'
+    currentUser: 'valuation_current_user'
 };
 
-// ==================== 存储工具 ====================
-function getUsers() {
-    try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEYS.users) || '{}');
-    } catch(e) { return {}; }
-}
-
-function saveUsers(users) {
-    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
-}
-
-function getUsedCodes() {
-    try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEYS.usedCodes) || '[]');
-    } catch(e) { return []; }
-}
-
-function saveUsedCodes(codes) {
-    localStorage.setItem(STORAGE_KEYS.usedCodes, JSON.stringify(codes));
-}
-
+// ==================== 会话管理 ====================
 function getCurrentUser() {
     try {
         return JSON.parse(localStorage.getItem(STORAGE_KEYS.currentUser) || 'null');
@@ -53,6 +48,7 @@ function setCurrentUser(user) {
 function showToast(message, duration) {
     duration = duration || 2000;
     var toast = document.getElementById('toast');
+    if (!toast) return;
     toast.textContent = message;
     toast.classList.remove('hidden');
     setTimeout(function() {
@@ -73,7 +69,7 @@ function showScreen(name) {
 }
 
 // ==================== 登录 ====================
-function handleLogin() {
+async function handleLogin() {
     var username = document.getElementById('login-username').value.trim();
     var password = document.getElementById('login-password').value.trim();
 
@@ -86,26 +82,40 @@ function handleLogin() {
         return;
     }
 
-    var users = getUsers();
-    if (!users[username]) {
-        showToast('用户不存在，请先注册');
-        return;
-    }
-    if (users[username].password !== password) {
-        showToast('密码错误');
-        return;
-    }
+    showToast('登录中...', 10000);
 
-    setCurrentUser({ username: username });
-    showToast('登录成功');
-    setTimeout(function() {
-        showScreen('main');
-        calculate();
-    }, 500);
+    try {
+        var passwordHash = await sha256(password);
+        var { data, error } = await supabase.rpc('login_user', {
+            p_username: username,
+            p_password_hash: passwordHash
+        });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            setCurrentUser({
+                username: data[0].username,
+                passwordHash: passwordHash,
+                inviteCode: data[0].invite_code,
+                createdAt: data[0].created_at
+            });
+            showToast('登录成功');
+            setTimeout(function() {
+                showScreen('main');
+                calculate();
+            }, 500);
+        } else {
+            showToast('用户名或密码错误');
+        }
+    } catch (err) {
+        console.error('登录失败:', err);
+        showToast('登录失败：' + (err.message || '网络错误'));
+    }
 }
 
 // ==================== 注册 ====================
-function handleRegister() {
+async function handleRegister() {
     var inviteCode = document.getElementById('register-invite').value.trim().toUpperCase();
     var username = document.getElementById('register-username').value.trim();
     var password = document.getElementById('register-password').value.trim();
@@ -114,15 +124,6 @@ function handleRegister() {
     // 验证邀请码
     if (!inviteCode) {
         showToast('请输入邀请码');
-        return;
-    }
-    if (VALID_INVITE_CODES.indexOf(inviteCode) === -1) {
-        showToast('邀请码无效');
-        return;
-    }
-    var usedCodes = getUsedCodes();
-    if (usedCodes.indexOf(inviteCode) !== -1) {
-        showToast('该邀请码已被使用');
         return;
     }
 
@@ -135,9 +136,8 @@ function handleRegister() {
         showToast('用户名至少2个字符');
         return;
     }
-    var users = getUsers();
-    if (users[username]) {
-        showToast('用户名已存在');
+    if (username.toLowerCase() === 'admin') {
+        showToast('该用户名不可用');
         return;
     }
 
@@ -155,28 +155,36 @@ function handleRegister() {
         return;
     }
 
-    // 注册成功
-    users[username] = {
-        password: password,
-        inviteCode: inviteCode,
-        registerTime: new Date().toISOString()
-    };
-    saveUsers(users);
-    usedCodes.push(inviteCode);
-    saveUsedCodes(usedCodes);
+    showToast('注册中...', 10000);
 
-    showToast('注册成功，请登录');
-    setTimeout(function() {
-        // 清空注册表单
-        document.getElementById('register-invite').value = '';
-        document.getElementById('register-username').value = '';
-        document.getElementById('register-password').value = '';
-        document.getElementById('register-password2').value = '';
-        // 预填登录用户名
-        document.getElementById('login-username').value = username;
-        document.getElementById('login-password').value = '';
-        showScreen('login');
-    }, 800);
+    try {
+        var passwordHash = await sha256(password);
+        var { data, error } = await supabase.rpc('register_user', {
+            p_username: username,
+            p_password_hash: passwordHash,
+            p_code: inviteCode
+        });
+
+        if (error) throw error;
+
+        if (data === true) {
+            showToast('注册成功，请登录');
+            setTimeout(function() {
+                document.getElementById('register-invite').value = '';
+                document.getElementById('register-username').value = '';
+                document.getElementById('register-password').value = '';
+                document.getElementById('register-password2').value = '';
+                document.getElementById('login-username').value = username;
+                document.getElementById('login-password').value = '';
+                showScreen('login');
+            }, 800);
+        } else {
+            showToast('邀请码无效或用户名已存在');
+        }
+    } catch (err) {
+        console.error('注册失败:', err);
+        showToast('注册失败：' + (err.message || '网络错误'));
+    }
 }
 
 // ==================== 退出登录 ====================
@@ -190,12 +198,7 @@ function handleLogout() {
 function updateSliderDisplay(slider, displayId) {
     var display = document.getElementById(displayId);
     var value = parseFloat(slider.value);
-    // 判断是否需要显示小数
-    if (slider.step && slider.step !== '1') {
-        display.textContent = value + '%';
-    } else {
-        display.textContent = value + '%';
-    }
+    display.textContent = value + '%';
 }
 
 // ==================== 详情表格展开/收起 ====================
@@ -259,7 +262,6 @@ function calculate() {
     var totalValue = totalPV + perpetualPV;
 
     // 每股内在价值（元/股）
-    // totalValue 单位是亿元，shares 单位是亿股，相除得 元/股
     var intrinsicValuePerShare = shares > 0 ? totalValue / shares : 0;
 
     // 安全边际买入价（元/股）
@@ -283,13 +285,7 @@ function calculate() {
 
 // ==================== 格式化工具 ====================
 function formatMoney(value) {
-    if (value >= 100) {
-        return '¥' + value.toFixed(2);
-    } else if (value >= 10) {
-        return '¥' + value.toFixed(2);
-    } else {
-        return '¥' + value.toFixed(2);
-    }
+    return '¥' + value.toFixed(2);
 }
 
 function formatPercent(value) {
@@ -377,7 +373,7 @@ function updateEvaluation(premiumRate, price, safeBuyPrice, intrinsicValue) {
 document.addEventListener('DOMContentLoaded', function() {
     // 检查登录状态
     var currentUser = getCurrentUser();
-    if (currentUser) {
+    if (currentUser && currentUser.username) {
         showScreen('main');
         calculate();
     } else {
@@ -385,15 +381,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 回车键登录
-    document.getElementById('login-password').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') handleLogin();
-    });
-    document.getElementById('register-password2').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') handleRegister();
-    });
+    var loginPassword = document.getElementById('login-password');
+    if (loginPassword) {
+        loginPassword.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') handleLogin();
+        });
+    }
+
+    var registerPassword2 = document.getElementById('register-password2');
+    if (registerPassword2) {
+        registerPassword2.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') handleRegister();
+        });
+    }
 
     // 邀请码输入自动大写
-    document.getElementById('register-invite').addEventListener('input', function(e) {
-        e.target.value = e.target.value.toUpperCase();
-    });
+    var registerInvite = document.getElementById('register-invite');
+    if (registerInvite) {
+        registerInvite.addEventListener('input', function(e) {
+            e.target.value = e.target.value.toUpperCase();
+        });
+    }
 });
