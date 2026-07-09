@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>段永平估值助手</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- ==================== 登录页 ==================== -->
+        <div class="screen" id="screen-login">
+            <div class="login-container">
+                <div class="logo-area">
+                    <div class="logo-icon">
+                        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                            <rect width="64" height="64" rx="16" fill="#1B4F8C"/>
+                            <path d="M20 40L28 28L36 36L46 22" stroke="#4FC3F7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="46" cy="22" r="3" fill="#4FC3F7"/>
+                            <text x="32" y="52" font-size="9" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="bold">估值</text>
+                        </svg>
+                    </div>
+                    <h1 class="app-title">段永平估值助手</h1>
+                    <p class="app-subtitle">10年现金流折现 · 内在价值计算</p>
+                </div>
+
+                <div class="form-card">
+                    <div class="input-group">
+                        <label class="input-label">手机号 / 用户名</label>
+                        <input type="text" id="login-username" class="text-input" placeholder="请输入手机号或用户名" maxlength="20">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">密码</label>
+                        <input type="password" id="login-password" class="text-input" placeholder="请输入密码" maxlength="20">
+                    </div>
+                    <button class="btn-primary" onclick="handleLogin()">登 录</button>
+                    <div class="link-row">
+                        <span class="link-text" onclick="showScreen('register')">没有账号？邀请注册</span>
+                    </div>
+                </div>
+
+                <p class="disclaimer-mini">本工具仅供学习参考，不构成投资建议</p>
+            </div>
+        </div>
+
+        <!-- ==================== 注册页 ==================== -->
+        <div class="screen hidden" id="screen-register">
+            <div class="login-container">
+                <div class="logo-area">
+                    <div class="logo-icon">
+                        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                            <rect width="64" height="64" rx="16" fill="#1B4F8C"/>
+                            <path d="M32 18V46M18 32H46" stroke="#4FC3F7" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="32" cy="32" r="20" stroke="#4FC3F7" stroke-width="2" fill="none" opacity="0.3"/>
+                        </svg>
+                    </div>
+                    <h1 class="app-title">邀请注册</h1>
+                    <p class="app-subtitle">请输入邀请码完成注册</p>
+                </div>
+
+                <div class="form-card">
+                    <div class="input-group">
+                        <label class="input-label">邀请码</label>
+                        <input type="text" id="register-invite" class="text-input invite-input" placeholder="请输入6位邀请码" maxlength="6">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">手机号 / 用户名</label>
+                        <input type="text" id="register-username" class="text-input" placeholder="请设置用户名" maxlength="20">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">密码</label>
+                        <input type="password" id="register-password" class="text-input" placeholder="请设置密码（6-20位）" maxlength="20">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">确认密码</label>
+                        <input type="password" id="register-password2" class="text-input" placeholder="请再次输入密码" maxlength="20">
+                    </div>
+                    <button class="btn-primary" onclick="handleRegister()">注 册</button>
+                    <div class="link-row">
+                        <span class="link-text" onclick="showScreen('login')">已有账号？返回登录</span>
+                    </div>
+                </div>
+
+                <div class="invite-hint">
+                    <p class="invite-hint-title">如何获取邀请码？</p>
+                    <p class="invite-hint-text">本工具为邀请制使用，请联系推荐人获取邀请码。每个邀请码仅可使用一次。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 主界面 ==================== -->
+        <div class="screen hidden" id="screen-main">
+            <!-- 顶部导航 -->
+            <div class="nav-bar">
+                <div class="nav-title">段永平估值助手</div>
+                <div class="nav-right" onclick="handleLogout()">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M13 5L8 10L13 15M8 10H18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="rotate(180 13 10)"/>
+                    </svg>
+                    <span>退出</span>
+                </div>
+            </div>
+
+            <!-- 内容区 -->
+            <div class="main-content">
+                <!-- 参数输入卡片 -->
+                <div class="section">
+                    <div class="section-header">
+                        <span class="section-number">1</span>
+                        <span class="section-title">基础参数输入</span>
+                    </div>
+                    <div class="card">
+                        <div class="input-row">
+                            <div class="input-row-label">
+                                <span class="input-row-name">当前年度净利润</span>
+                                <span class="input-row-unit">亿元</span>
+                            </div>
+                            <input type="number" id="param-profit" class="number-input" value="195.5" step="0.1" min="0" oninput="calculate()">
+                        </div>
+                        <div class="input-hint">请输入公司最新年度的归母净利润</div>
+                    </div>
+                    <div class="card">
+                        <div class="input-row">
+                            <div class="input-row-label">
+                                <span class="input-row-name">总股本</span>
+                                <span class="input-row-unit">亿股</span>
+                            </div>
+                            <input type="number" id="param-shares" class="number-input" value="93.78" step="0.01" min="0" oninput="calculate()">
+                        </div>
+                        <div class="input-hint">请输入公司总股本</div>
+                    </div>
+                    <div class="card">
+                        <div class="input-row">
+                            <div class="input-row-label">
+                                <span class="input-row-name">当前股价</span>
+                                <span class="input-row-unit">元/股</span>
+                            </div>
+                            <input type="number" id="param-price" class="number-input" value="21.04" step="0.01" min="0" oninput="calculate()">
+                        </div>
+                        <div class="input-hint">请输入公司当前最新股价</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <span class="section-number">2</span>
+                        <span class="section-title">增长率与折现参数</span>
+                    </div>
+                    <div class="card">
+                        <div class="input-row">
+                            <div class="input-row-label">
+                                <span class="input-row-name">未来10年净利润复合增长率</span>
+                            </div>
+                            <div class="slider-group">
+                                <input type="range" id="param-growth" class="slider" min="0" max="30" step="1" value="15" oninput="updateSliderDisplay(this, 'param-growth-display'); calculate()">
+                                <span class="slider-value" id="param-growth-display">15%</span>
+                            </div>
+                        </div>
+                        <div class="input-hint">段永平建议：保守预估，不超过15%</div>
+                    </div>
+                    <div class="card">
+                        <div class="input-row">
+                            <div class="input-row-label">
+                                <span class="input-row-name">10年后永续净利润增长率</span>
+                            </div>
+                            <div class="slider-group">
+                                <input type="range" id="param-perpetual" class="slider" min="0" max="8" step="0.5" value="3" oninput="updateSliderDisplay(this, 'param-perpetual-display'); calculate()">
+                                <span class="slider-value" id="param-perpetual-display">3%</span>
+                            </div>
+                        </div>
+                        <div class="input-hint">段永平建议：不超过长期GDP增速，通常3%-5%</div>
+                    </div>
+                    <div class="card">
+                        <div class="input-row">
+                            <div class="input-row-label">
+                                <span class="input-row-name">无风险折现率</span>
+                            </div>
+                            <div class="slider-group">
+                                <input type="range" id="param-riskfree" class="slider" min="1" max="8" step="0.5" value="5" oninput="updateSliderDisplay(this, 'param-riskfree-display'); calculate()">
+                                <span class="slider-value" id="param-riskfree-display">5%</span>
+                            </div>
+                        </div>
+                        <div class="input-hint">通常取10年期国债收益率，段永平常用5%</div>
+                    </div>
+                    <div class="card">
+                        <div class="input-row">
+                            <div class="input-row-label">
+                                <span class="input-row-name">风险溢价</span>
+                            </div>
+                            <div class="slider-group">
+                                <input type="range" id="param-riskpremium" class="slider" min="0" max="10" step="0.5" value="5" oninput="updateSliderDisplay(this, 'param-riskpremium-display'); calculate()">
+                                <span class="slider-value" id="param-riskpremium-display">5%</span>
+                            </div>
+                        </div>
+                        <div class="input-hint">段永平常用5%，合计折现率10%</div>
+                    </div>
+                    <div class="card">
+                        <div class="input-row">
+                            <div class="input-row-label">
+                                <span class="input-row-name">安全边际折扣</span>
+                            </div>
+                            <div class="slider-group">
+                                <input type="range" id="param-margin" class="slider" min="50" max="90" step="5" value="70" oninput="updateSliderDisplay(this, 'param-margin-display'); calculate()">
+                                <span class="slider-value" id="param-margin-display">70%</span>
+                            </div>
+                        </div>
+                        <div class="input-hint">段永平建议：至少7折，优质公司可放宽至8折</div>
+                    </div>
+                </div>
+
+                <!-- 合计折现率显示 -->
+                <div class="discount-display">
+                    <span class="discount-label">合计折现率</span>
+                    <span class="discount-value" id="discount-rate">10.0%</span>
+                </div>
+
+                <!-- 估值结果卡片 -->
+                <div class="section">
+                    <div class="section-header">
+                        <span class="section-number">3</span>
+                        <span class="section-title">估值结果</span>
+                    </div>
+
+                    <div class="result-card primary-result">
+                        <div class="result-label">每股内在价值</div>
+                        <div class="result-value" id="result-intrinsic-value">¥74.68</div>
+                        <div class="result-sub">
+                            <span>安全边际买入价</span>
+                            <span class="result-sub-value" id="result-safe-price">¥52.28</span>
+                        </div>
+                    </div>
+
+                    <div class="result-row">
+                        <div class="result-card-mini">
+                            <div class="mini-label">当前股价</div>
+                            <div class="mini-value" id="result-current-price">¥21.04</div>
+                        </div>
+                        <div class="result-card-mini">
+                            <div class="mini-label">溢价率</div>
+                            <div class="mini-value" id="result-premium">-71.8%</div>
+                        </div>
+                    </div>
+
+                    <div class="result-card evaluation-card" id="evaluation-card">
+                        <div class="eval-row">
+                            <span class="eval-icon" id="eval-icon">●</span>
+                            <span class="eval-label" id="eval-label">估值偏低，有安全边际</span>
+                        </div>
+                        <div class="eval-divider"></div>
+                        <div class="eval-row">
+                            <span class="eval-icon" id="eval-icon2">●</span>
+                            <span class="eval-label" id="eval-action">非常适合，已进入安全边际区间</span>
+                        </div>
+                        <div class="eval-divider"></div>
+                        <div class="eval-advice" id="eval-advice">建议：可分批买入，长期持有，享受公司成长收益</div>
+                    </div>
+                </div>
+
+                <!-- 10年现金流详情 -->
+                <div class="section">
+                    <div class="section-header">
+                        <span class="section-number">4</span>
+                        <span class="section-title">10年现金流折现详情</span>
+                        <span class="toggle-detail" id="toggle-detail" onclick="toggleDetail()">展开</span>
+                    </div>
+                    <div class="detail-table hidden" id="detail-table">
+                        <div class="table-header">
+                            <span class="col-year">年份</span>
+                            <span class="col-profit">净利润(亿)</span>
+                            <span class="col-factor">折现系数</span>
+                            <span class="col-pv">现值(亿)</span>
+                        </div>
+                        <div id="detail-rows"></div>
+                        <div class="table-footer">
+                            <span class="col-year">10年现值合计</span>
+                            <span class="col-profit"></span>
+                            <span class="col-factor"></span>
+                            <span class="col-pv" id="detail-total">2516.86</span>
+                        </div>
+                        <div class="table-footer perpetual-row">
+                            <span class="col-year">永续价值现值</span>
+                            <span class="col-profit"></span>
+                            <span class="col-factor"></span>
+                            <span class="col-pv" id="detail-perpetual">4486.81</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 免责声明 -->
+                <div class="disclaimer-section">
+                    <div class="disclaimer-title">免责声明</div>
+                    <p class="disclaimer-text">
+                        本工具仅为股票内在价值计算的辅助工具，基于段永平的价值投资理论设计，不构成任何投资建议。股票投资具有高风险，用户使用本工具做出的任何投资决策均由用户自行承担全部风险和责任。
+                    </p>
+                </div>
+
+                <div style="height: 30px;"></div>
+            </div>
+        </div>
+
+        <!-- ==================== Toast提示 ==================== -->
+        <div class="toast hidden" id="toast"></div>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
