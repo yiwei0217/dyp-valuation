@@ -1,33 +1,68 @@
 /**
  * 价值投资估值助手 - 应用逻辑
  * 基于段永平10年现金流折现估值模型
- * 后端：Supabase
+ * 后端：Supabase（优先）+ localStorage（兜底）
  */
 
 // ==================== Supabase 配置 ====================
-// 请替换为你自己的 Supabase 项目信息
 const SUPABASE_URL = 'https://ufiqbjriueqchbkvnwr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmaXFianJiaXVlcWNoYmt2bndyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDcwMjUsImV4cCI6MjA5OTEyMzAyNX0.e4o37LSsc8cdlXsClvqoUC9TO3UNMlc6sr7sm-CYU6Y';
 
-// 初始化 Supabase 客户端
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ==================== 状态标记 ====================
+let supabase = null;
+let useSupabase = false;  // 是否使用 Supabase（连不上则用 localStorage）
 
 // ==================== 工具函数 ====================
 
-// SHA-256 哈希（用于密码）
-async function sha256(text) {
+function sha256(text) {
     if (!text) return '';
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return new Promise(function(resolve) {
+        var encoder = new TextEncoder();
+        var data = encoder.encode(text);
+        crypto.subtle.digest('SHA-256', data).then(function(hashBuffer) {
+            var hashArray = Array.from(new Uint8Array(hashBuffer));
+            resolve(hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).join(''));
+        });
+    });
 }
 
-// localStorage 键名（仅用于保存当前登录会话）
+// localStorage 键名
 const STORAGE_KEYS = {
-    currentUser: 'valuation_current_user'
+    currentUser: 'valuation_current_user',
+    localUsers: 'valuation_local_users',
+    localInvites: 'valuation_local_invites'
 };
+
+// ==================== 动态加载 Supabase CDN ====================
+function loadSupabaseCDN() {
+    return new Promise(function(resolve) {
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+        script.onload = function() { resolve(true); };
+        script.onerror = function() { resolve(false); };
+        document.head.appendChild(script);
+    });
+}
+
+// ==================== 初始化 Supabase ====================
+async function initSupabase() {
+    var cdnLoaded = await loadSupabaseCDN();
+
+    if (!cdnLoaded) {
+        console.warn('Supabase CDN failed to load, using localStorage');
+        return false;
+    }
+
+    try {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        useSupabase = true;
+        console.log('Supabase connected');
+        return true;
+    } catch(e) {
+        console.warn('Supabase init error:', e.message);
+        return false;
+    }
+}
 
 // ==================== 会话管理 ====================
 function getCurrentUser() {
@@ -42,6 +77,61 @@ function setCurrentUser(user) {
     } else {
         localStorage.removeItem(STORAGE_KEYS.currentUser);
     }
+}
+
+// ==================== 本地存储模式的用户管理 ====================
+function getLocalUsers() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEYS.localUsers) || '{}');
+    } catch(e) { return {}; }
+}
+
+function saveLocalUser(username, passwordHash, inviteCode) {
+    var users = getLocalUsers();
+    users[username.toLowerCase()] = {
+        username: username,
+        passwordHash: passwordHash,
+        inviteCode: inviteCode
+    };
+    localStorage.setItem(STORAGE_KEYS.localUsers, JSON.stringify(users));
+}
+
+function getLocalInvites() {
+    try {
+        var invites = JSON.parse(localStorage.getItem(STORAGE_KEYS.localInvites));
+        if (!invites || !Array.isArray(invites)) {
+            // 初始化默认邀请码
+            invites = [
+                { code: 'ZS2026', is_used: false },
+                { code: 'VALUE1', is_used: false },
+                { code: 'DUANYP', is_used: false },
+                { code: 'ZJJM66', is_used: false },
+                { code: 'BUFFET', is_used: false }
+            ];
+            localStorage.setItem(STORAGE_KEYS.localInvites, JSON.stringify(invites));
+        }
+        return invites;
+    } catch(e) {
+        return [];
+    }
+}
+
+function validateLocalInvite(code) {
+    var invites = getLocalInvites();
+    var found = false;
+    for (var i = 0; i < invites.length; i++) {
+        if (invites[i].code === code && !invites[i].is_used) {
+            found = true;
+            invites[i].is_used = true;
+            invites[i].used_by = '';
+            invites[i].used_at = new Date().toISOString();
+            break;
+        }
+    }
+    if (found) {
+        localStorage.setItem(STORAGE_KEYS.localInvites, JSON.stringify(invites));
+    }
+    return found;
 }
 
 // ==================== Toast 提示 ====================
@@ -73,43 +163,60 @@ async function handleLogin() {
     var username = document.getElementById('login-username').value.trim();
     var password = document.getElementById('login-password').value.trim();
 
-    if (!username) {
-        showToast('请输入用户名');
-        return;
-    }
-    if (!password) {
-        showToast('请输入密码');
-        return;
-    }
+    if (!username) { showToast('请输入用户名'); return; }
+    if (!password) { showToast('请输入密码'); return; }
 
     showToast('登录中...', 10000);
 
+    var passwordHash = await sha256(password);
+
     try {
-        var passwordHash = await sha256(password);
-        var { data, error } = await supabase.rpc('login_user', {
-            p_username: username,
-            p_password_hash: passwordHash
-        });
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-            setCurrentUser({
-                username: data[0].username,
-                passwordHash: passwordHash,
-                inviteCode: data[0].invite_code,
-                createdAt: data[0].created_at
+        if (useSupabase && supabase) {
+            // Supabase 模式
+            var { data, error } = await supabase.rpc('login_user', {
+                p_username: username,
+                p_password_hash: passwordHash
             });
-            showToast('登录成功');
-            setTimeout(function() {
-                showScreen('main');
-                calculate();
-            }, 500);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                setCurrentUser({
+                    username: data[0].username,
+                    passwordHash: passwordHash,
+                    inviteCode: data[0].invite_code,
+                    createdAt: data[0].created_at
+                });
+                showToast('登录成功');
+                setTimeout(function() { showScreen('main'); calculate(); }, 500);
+            } else {
+                showToast('用户名或密码错误');
+            }
         } else {
-            showToast('用户名或密码错误');
+            // localStorage 模式
+            var users = getLocalUsers();
+            var key = username.toLowerCase();
+            if (users[key] && users[key].passwordHash === passwordHash) {
+                setCurrentUser({
+                    username: users[key].username,
+                    passwordHash: passwordHash,
+                    inviteCode: users[key].inviteCode
+                });
+                showToast('登录成功（离线模式）');
+                setTimeout(function() { showScreen('main'); calculate(); }, 500);
+            } else {
+                showToast('用户名或密码错误');
+            }
         }
     } catch (err) {
         console.error('登录失败:', err);
+        // Supabase 失败则降级到 localStorage
+        if (useSupabase) {
+            useSupabase = false;
+            showToast('云端连接失败，尝试本地登录...');
+            handleLogin();
+            return;
+        }
         showToast('登录失败：' + (err.message || '网络错误'));
     }
 }
@@ -121,68 +228,73 @@ async function handleRegister() {
     var password = document.getElementById('register-password').value.trim();
     var password2 = document.getElementById('register-password2').value.trim();
 
-    // 验证邀请码
-    if (!inviteCode) {
-        showToast('请输入邀请码');
-        return;
-    }
-
-    // 验证用户名
-    if (!username) {
-        showToast('请设置用户名');
-        return;
-    }
-    if (username.length < 2) {
-        showToast('用户名至少2个字符');
-        return;
-    }
-    if (username.toLowerCase() === 'admin') {
-        showToast('该用户名不可用');
-        return;
-    }
-
-    // 验证密码
-    if (!password) {
-        showToast('请设置密码');
-        return;
-    }
-    if (password.length < 6) {
-        showToast('密码至少6位');
-        return;
-    }
-    if (password !== password2) {
-        showToast('两次密码不一致');
-        return;
-    }
+    if (!inviteCode) { showToast('请输入邀请码'); return; }
+    if (!username) { showToast('请设置用户名'); return; }
+    if (username.length < 2) { showToast('用户名至少2个字符'); return; }
+    if (username.toLowerCase() === 'admin') { showToast('该用户名不可用'); return; }
+    if (!password) { showToast('请设置密码'); return; }
+    if (password.length < 6) { showToast('密码至少6位'); return; }
+    if (password !== password2) { showToast('两次密码不一致'); return; }
 
     showToast('注册中...', 10000);
 
+    var passwordHash = await sha256(password);
+
     try {
-        var passwordHash = await sha256(password);
-        var { data, error } = await supabase.rpc('register_user', {
-            p_username: username,
-            p_password_hash: passwordHash,
-            p_code: inviteCode
-        });
+        if (useSupabase && supabase) {
+            // 验证邀请码
+            var { data: validData, error: validErr } = await supabase.rpc('validate_invite_code', {
+                p_code: inviteCode
+            });
 
-        if (error) throw error;
+            if (validErr) throw validErr;
+            if (!validData) {
+                showToast('邀请码无效或已使用');
+                return;
+            }
 
-        if (data === true) {
-            showToast('注册成功，请登录');
-            setTimeout(function() {
-                document.getElementById('register-invite').value = '';
-                document.getElementById('register-username').value = '';
-                document.getElementById('register-password').value = '';
-                document.getElementById('register-password2').value = '';
-                document.getElementById('login-username').value = username;
-                document.getElementById('login-password').value = '';
-                showScreen('login');
-            }, 800);
+            // 注册
+            var { data: regData, error: regErr } = await supabase.rpc('register_user', {
+                p_username: username,
+                p_password_hash: passwordHash,
+                p_code: inviteCode
+            });
+
+            if (regErr) throw regErr;
+            if (!regData) {
+                showToast('注册失败：用户名已存在或邀请码已使用');
+                return;
+            }
+
+            showToast('注册成功！请登录');
+            setTimeout(function() { showScreen('login'); }, 1000);
+
         } else {
-            showToast('邀请码无效或用户名已存在');
+            // localStorage 模式
+            var users = getLocalUsers();
+            if (users[username.toLowerCase()]) {
+                showToast('用户名已存在');
+                return;
+            }
+
+            var ok = validateLocalInvite(inviteCode);
+            if (!ok) {
+                showToast('邀请码无效或已使用');
+                return;
+            }
+
+            saveLocalUser(username, passwordHash, inviteCode);
+            showToast('注册成功！请登录（离线模式）');
+            setTimeout(function() { showScreen('login'); }, 1000);
         }
     } catch (err) {
         console.error('注册失败:', err);
+        if (useSupabase) {
+            useSupabase = false;
+            showToast('云端连接失败，尝试本地注册...');
+            handleRegister();
+            return;
+        }
         showToast('注册失败：' + (err.message || '网络错误'));
     }
 }
@@ -191,10 +303,9 @@ async function handleRegister() {
 function handleLogout() {
     setCurrentUser(null);
     showScreen('login');
-    document.getElementById('login-password').value = '';
 }
 
-// ==================== 滑块显示更新 ====================
+// ==================== 滑块显示 ====================
 function updateSliderDisplay(slider, displayId) {
     var display = document.getElementById(displayId);
     var value = parseFloat(slider.value);
@@ -216,28 +327,25 @@ function toggleDetail() {
 
 // ==================== 核心估值计算 ====================
 function calculate() {
-    // 获取输入参数
-    var profit = parseFloat(document.getElementById('param-profit').value) || 0;       // 当前净利润（亿元）
-    var shares = parseFloat(document.getElementById('param-shares').value) || 0;       // 总股本（亿股）
-    var price = parseFloat(document.getElementById('param-price').value) || 0;         // 当前股价（元/股）
-    var growth = parseFloat(document.getElementById('param-growth').value) / 100;      // 10年复合增长率
-    var perpetual = parseFloat(document.getElementById('param-perpetual').value) / 100;// 永续增长率
-    var riskFree = parseFloat(document.getElementById('param-riskfree').value) / 100;  // 无风险折现率
-    var riskPremium = parseFloat(document.getElementById('param-riskpremium').value) / 100; // 风险溢价
-    var margin = parseFloat(document.getElementById('param-margin').value) / 100;      // 安全边际折扣
+    var profit = parseFloat(document.getElementById('param-profit').value) || 0;
+    var shares = parseFloat(document.getElementById('param-shares').value) || 0;
+    var price = parseFloat(document.getElementById('param-price').value) || 0;
+    var growth = parseFloat(document.getElementById('param-growth').value) / 100;
+    var perpetual = parseFloat(document.getElementById('param-perpetual').value) / 100;
+    var riskFree = parseFloat(document.getElementById('param-riskfree').value) / 100;
+    var riskPremium = parseFloat(document.getElementById('param-riskpremium').value) / 100;
+    var margin = parseFloat(document.getElementById('param-margin').value) / 100;
 
-    // 合计折现率
     var discountRate = riskFree + riskPremium;
     document.getElementById('discount-rate').textContent = (discountRate * 100).toFixed(1) + '%';
 
-    // 10年现金流折现计算
     var yearlyData = [];
-    var totalPV = 0; // 10年现值合计（亿元）
+    var totalPV = 0;
 
     for (var year = 1; year <= 10; year++) {
-        var yearProfit = profit * Math.pow(1 + growth, year);           // 当年净利润（亿元）
-        var discountFactor = 1 / Math.pow(1 + discountRate, year);      // 折现系数
-        var presentValue = yearProfit * discountFactor;                  // 当年净利润现值（亿元）
+        var yearProfit = profit * Math.pow(1 + growth, year);
+        var discountFactor = 1 / Math.pow(1 + discountRate, year);
+        var presentValue = yearProfit * discountFactor;
         totalPV += presentValue;
         yearlyData.push({
             year: year,
@@ -247,56 +355,39 @@ function calculate() {
         });
     }
 
-    // 永续价值计算
-    var year10Profit = yearlyData[9].profit;                                    // 第10年末净利润（亿元）
-    var year11Profit = year10Profit * (1 + perpetual);                         // 第11年净利润（亿元）
+    var year10Profit = yearlyData[9].profit;
+    var year11Profit = year10Profit * (1 + perpetual);
     var perpetualValue = 0;
     var perpetualPV = 0;
 
     if (discountRate > perpetual) {
-        perpetualValue = year11Profit / (discountRate - perpetual);            // 第10年末永续价值（亿元）
-        perpetualPV = perpetualValue / Math.pow(1 + discountRate, 10);         // 永续价值折现到当前现值（亿元）
+        perpetualValue = year11Profit / (discountRate - perpetual);
+        perpetualPV = perpetualValue / Math.pow(1 + discountRate, 10);
     }
 
-    // 企业总内在价值现值（亿元）
     var totalValue = totalPV + perpetualPV;
-
-    // 每股内在价值（元/股）
     var intrinsicValuePerShare = shares > 0 ? totalValue / shares : 0;
-
-    // 安全边际买入价（元/股）
     var safeBuyPrice = intrinsicValuePerShare * margin;
-
-    // 溢价率
     var premiumRate = intrinsicValuePerShare > 0 ? (price - intrinsicValuePerShare) / intrinsicValuePerShare : 0;
 
-    // 更新结果显示
     document.getElementById('result-intrinsic-value').textContent = formatMoney(intrinsicValuePerShare);
     document.getElementById('result-safe-price').textContent = formatMoney(safeBuyPrice);
     document.getElementById('result-current-price').textContent = formatMoney(price);
     document.getElementById('result-premium').textContent = formatPercent(premiumRate);
 
-    // 更新详情表格
     updateDetailTable(yearlyData, totalPV, perpetualPV);
-
-    // 更新评价
     updateEvaluation(premiumRate, price, safeBuyPrice, intrinsicValuePerShare);
 }
 
-// ==================== 格式化工具 ====================
 function formatMoney(value) {
-    return '¥' + value.toFixed(2);
+    return '\u00A5' + value.toFixed(2);
 }
 
 function formatPercent(value) {
     var pct = (value * 100).toFixed(1);
-    if (value > 0) {
-        return '+' + pct + '%';
-    }
-    return pct + '%';
+    return value > 0 ? '+' + pct + '%' : pct + '%';
 }
 
-// ==================== 更新详情表格 ====================
 function updateDetailTable(yearlyData, totalPV, perpetualPV) {
     var container = document.getElementById('detail-rows');
     var html = '';
@@ -314,7 +405,6 @@ function updateDetailTable(yearlyData, totalPV, perpetualPV) {
     document.getElementById('detail-perpetual').textContent = perpetualPV.toFixed(2);
 }
 
-// ==================== 更新评价 ====================
 function updateEvaluation(premiumRate, price, safeBuyPrice, intrinsicValue) {
     var card = document.getElementById('evaluation-card');
     var icon = document.getElementById('eval-icon');
@@ -323,9 +413,7 @@ function updateEvaluation(premiumRate, price, safeBuyPrice, intrinsicValue) {
     var action = document.getElementById('eval-action');
     var advice = document.getElementById('eval-advice');
 
-    // 清除旧的颜色类
     card.className = 'result-card evaluation-card';
-
     var evalText, actionText, adviceText, colorClass;
 
     if (premiumRate <= -0.2) {
@@ -350,7 +438,6 @@ function updateEvaluation(premiumRate, price, safeBuyPrice, intrinsicValue) {
         adviceText = '建议：坚决不买入，已持有的建议清仓规避风险';
     }
 
-    // 买入建议
     if (price <= safeBuyPrice) {
         actionText = '非常适合，已进入安全边际区间';
     } else if (price <= intrinsicValue) {
@@ -362,15 +449,21 @@ function updateEvaluation(premiumRate, price, safeBuyPrice, intrinsicValue) {
     label.textContent = evalText;
     action.textContent = actionText;
     advice.textContent = adviceText;
-
-    // 添加颜色类
     card.classList.add(colorClass);
     icon.textContent = '\u25CF';
     icon2.textContent = '\u25CF';
 }
 
 // ==================== 初始化 ====================
-document.addEventListener('DOMContentLoaded', function() {
+async function initApp() {
+    // 尝试连接 Supabase（5秒超时）
+    var connected = await initSupabase();
+
+    if (!connected) {
+        console.log('Supabase unavailable, running in offline mode');
+        useSupabase = false;
+    }
+
     // 检查登录状态
     var currentUser = getCurrentUser();
     if (currentUser && currentUser.username) {
@@ -395,11 +488,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 邀请码输入自动大写
+    // 邀请码自动大写
     var registerInvite = document.getElementById('register-invite');
     if (registerInvite) {
         registerInvite.addEventListener('input', function(e) {
             e.target.value = e.target.value.toUpperCase();
         });
     }
+}
+
+// 启动
+document.addEventListener('DOMContentLoaded', function() {
+    initApp().catch(function(err) {
+        console.error('App init error:', err);
+        // 兜底：直接显示登录页
+        showScreen('login');
+    });
 });
