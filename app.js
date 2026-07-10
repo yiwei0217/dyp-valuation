@@ -605,7 +605,11 @@ async function searchStock() {
     try {
         var response = await fetch(STOCK_DATA_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                'apikey': SUPABASE_ANON_KEY
+            },
             body: JSON.stringify({ query: query })
         });
 
