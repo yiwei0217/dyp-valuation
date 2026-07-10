@@ -560,6 +560,14 @@ async function initApp() {
             }
         })(sliderConfigs[j]);
     }
+
+    // 搜索框回车查询
+    var searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchStock();
+        });
+    }
 }
 
 // 启动
@@ -569,6 +577,93 @@ document.addEventListener('DOMContentLoaded', function() {
         showScreen('login');
     });
 });
+
+// ==================== 快速查询（自动获取股票数据） ====================
+
+var STOCK_DATA_URL = 'https://sgdcztoirqpuitjwdrzl.supabase.co/functions/v1/stock-data';
+
+async function searchStock() {
+    var input = document.getElementById('search-input');
+    var query = input.value.trim();
+    if (!query) {
+        showToast('请输入公司名称或股票代码');
+        return;
+    }
+
+    var btnEl = document.getElementById('btn-search');
+    var loadingEl = document.getElementById('search-loading');
+    var errorEl = document.getElementById('search-error');
+    var resultEl = document.getElementById('search-result');
+
+    // 显示加载状态
+    btnEl.disabled = true;
+    btnEl.textContent = '查询中';
+    loadingEl.classList.remove('hidden');
+    errorEl.classList.add('hidden');
+    resultEl.classList.add('hidden');
+
+    try {
+        var response = await fetch(STOCK_DATA_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query })
+        });
+
+        var data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        if (!data.success) {
+            throw new Error('获取数据失败');
+        }
+
+        // 自动填充三个参数
+        if (data.price) {
+            var priceInput = document.getElementById('param-price');
+            priceInput.value = data.price;
+        }
+        if (data.shares) {
+            var sharesInput = document.getElementById('param-shares');
+            sharesInput.value = data.shares;
+        }
+        if (data.profit) {
+            var profitInput = document.getElementById('param-profit');
+            profitInput.value = data.profit;
+        }
+
+        // 触发计算
+        calculate();
+
+        // 显示查询结果
+        var nameEl = document.getElementById('search-result-name');
+        var codeEl = document.getElementById('search-result-code');
+        nameEl.textContent = data.name || query;
+        codeEl.textContent = data.code + ' · ' + data.market;
+
+        resultEl.classList.remove('hidden');
+
+        // 净利润数据缺失提示
+        if (!data.profit) {
+            var errEl = document.getElementById('search-error-msg');
+            errEl.textContent = '股价和总股本已自动填入，净利润数据暂未获取到，请手动输入';
+            errorEl.classList.remove('hidden');
+        }
+
+        showToast('数据已自动填入');
+
+    } catch (err) {
+        console.error('searchStock error:', err);
+        var errEl = document.getElementById('search-error-msg');
+        errEl.textContent = err.message || '查询失败，请稍后重试';
+        errorEl.classList.remove('hidden');
+    } finally {
+        btnEl.disabled = false;
+        btnEl.textContent = '查询';
+        loadingEl.classList.add('hidden');
+    }
+}
 
 // ==================== AI 智能分析 ====================
 
