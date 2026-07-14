@@ -39,6 +39,7 @@
                     <button class="btn-primary" onclick="handleLogin()">登 录</button>
                     <div class="link-row">
                         <span class="link-text" onclick="showScreen('register')">没有账号？邀请注册</span>
+                        <span class="link-text" onclick="showScreen('forgot')">忘记密码</span>
                     </div>
                 </div>
 
@@ -87,6 +88,46 @@
                 <div class="invite-hint">
                     <p class="invite-hint-title">如何获取邀请码？</p>
                     <p class="invite-hint-text">本工具为邀请制使用，请联系推荐人获取邀请码。每个邀请码仅可使用一次。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 忘记密码页 ==================== -->
+        <div class="screen hidden" id="screen-forgot">
+            <div class="login-container">
+                <div class="logo-area">
+                    <div class="logo-icon">
+                        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                            <rect width="64" height="64" rx="16" fill="#1B4F8C"/>
+                            <path d="M32 18V38M32 38L24 30M32 38L40 30" stroke="#4FC3F7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                            <rect x="20" y="42" width="24" height="6" rx="3" fill="#4FC3F7" opacity="0.4"/>
+                        </svg>
+                    </div>
+                    <h1 class="app-title">找回密码</h1>
+                    <p class="app-subtitle">通过注册时的邀请码验证身份</p>
+                </div>
+
+                <div class="form-card">
+                    <div class="input-group">
+                        <label class="input-label">用户名</label>
+                        <input type="text" id="forgot-username" class="text-input" placeholder="请输入注册时的用户名" maxlength="20">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">注册邀请码</label>
+                        <input type="text" id="forgot-invite" class="text-input invite-input" placeholder="请输入注册时使用的邀请码" maxlength="10">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">新密码</label>
+                        <input type="password" id="forgot-password" class="text-input" placeholder="请设置新密码（6-20位）" maxlength="20">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">确认新密码</label>
+                        <input type="password" id="forgot-password2" class="text-input" placeholder="请再次输入新密码" maxlength="20">
+                    </div>
+                    <button class="btn-primary" onclick="handleForgotPassword()">重置密码</button>
+                    <div class="link-row">
+                        <span class="link-text" onclick="showScreen('login')">← 返回登录</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -360,6 +401,6 @@
     </div>
 
     <script src="supabase.min.js?v=4"></script>
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
 </body>
 </html>

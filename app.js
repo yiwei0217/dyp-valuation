@@ -335,6 +335,52 @@ function handleLogout() {
     showScreen('login');
 }
 
+// ==================== 忘记密码 ====================
+async function handleForgotPassword() {
+    var username = document.getElementById('forgot-username').value.trim();
+    var inviteCode = document.getElementById('forgot-invite').value.trim().toUpperCase();
+    var password = document.getElementById('forgot-password').value.trim();
+    var password2 = document.getElementById('forgot-password2').value.trim();
+
+    if (!username) { showToast('请输入用户名'); return; }
+    if (!inviteCode) { showToast('请输入邀请码'); return; }
+    if (!password) { showToast('请设置新密码'); return; }
+    if (password.length < 6) { showToast('密码至少6位'); return; }
+    if (password !== password2) { showToast('两次密码不一致'); return; }
+
+    showToast('重置中...', 10000);
+
+    var passwordHash = await sha256(password);
+
+    try {
+        if (useSupabase && supabase) {
+            var { data, error } = await supabase.rpc('reset_user_password', {
+                p_username: username,
+                p_invite_code: inviteCode,
+                p_new_password_hash: passwordHash
+            });
+
+            if (error) throw error;
+            if (data === true) {
+                showToast('密码重置成功！请用新密码登录');
+                // 清空输入
+                document.getElementById('forgot-username').value = '';
+                document.getElementById('forgot-invite').value = '';
+                document.getElementById('forgot-password').value = '';
+                document.getElementById('forgot-password2').value = '';
+                setTimeout(function() { showScreen('login'); }, 1500);
+            } else {
+                showToast('用户名与邀请码不匹配，请检查');
+            }
+        } else {
+            showToast('网络不可用，请稍后重试');
+        }
+    } catch (err) {
+        console.error('重置密码失败:', err);
+        showToast('重置失败：' + (err.message || '网络错误'));
+    }
+}
+
 // ==================== 滑块显示 ====================
 function updateSliderDisplay(slider, displayId) {
     var display = document.getElementById(displayId);
@@ -523,6 +569,22 @@ async function initApp() {
     if (registerInvite) {
         registerInvite.addEventListener('input', function(e) {
             e.target.value = e.target.value.toUpperCase();
+        });
+    }
+
+    // 忘记密码页 - 邀请码自动大写
+    var forgotInvite = document.getElementById('forgot-invite');
+    if (forgotInvite) {
+        forgotInvite.addEventListener('input', function(e) {
+            e.target.value = e.target.value.toUpperCase();
+        });
+    }
+
+    // 忘记密码页 - 回车提交
+    var forgotPassword2 = document.getElementById('forgot-password2');
+    if (forgotPassword2) {
+        forgotPassword2.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') handleForgotPassword();
         });
     }
 
