@@ -601,6 +601,7 @@ async function searchStock() {
     loadingEl.classList.remove('hidden');
     errorEl.classList.add('hidden');
     resultEl.classList.add('hidden');
+    document.getElementById('business-model-section').classList.add('hidden');
 
     try {
         var response = await fetch(STOCK_DATA_URL, {
@@ -648,6 +649,15 @@ async function searchStock() {
 
         resultEl.classList.remove('hidden');
 
+        // 显示生意模式分析
+        var bmSection = document.getElementById('business-model-section');
+        if (data.businessModel) {
+            showBusinessModel(data.businessModel);
+            bmSection.classList.remove('hidden');
+        } else {
+            bmSection.classList.add('hidden');
+        }
+
         // 净利润数据缺失提示
         if (!data.profit) {
             var errEl = document.getElementById('search-error-msg');
@@ -662,11 +672,74 @@ async function searchStock() {
         var errEl = document.getElementById('search-error-msg');
         errEl.textContent = err.message || '查询失败，请稍后重试';
         errorEl.classList.remove('hidden');
+        // 隐藏生意模式区域
+        document.getElementById('business-model-section').classList.add('hidden');
     } finally {
         btnEl.disabled = false;
         btnEl.textContent = '查询';
         loadingEl.classList.add('hidden');
     }
+}
+
+// ==================== 生意模式展示 ====================
+
+function showBusinessModel(bm) {
+    var badge = document.getElementById('bm-badge');
+    var desc = document.getElementById('bm-description');
+    var metricsEl = document.getElementById('bm-metrics');
+    var reasonsEl = document.getElementById('bm-reasons');
+
+    // 分类标签
+    badge.textContent = bm.category;
+    badge.className = 'bm-badge bm-' + bm.categoryKey;
+    desc.textContent = bm.description;
+
+    // 财务指标
+    var metrics = bm.metrics || {};
+    var metricsHtml = '';
+
+    if (metrics.grossMargin != null) {
+        var gmClass = metrics.grossMargin >= 50 ? 'good' : metrics.grossMargin >= 20 ? 'mid' : 'bad';
+        metricsHtml += '<div class="bm-metric">' +
+            '<div class="bm-metric-label">毛利率</div>' +
+            '<div class="bm-metric-value ' + gmClass + '">' + metrics.grossMargin.toFixed(1) + '%</div>' +
+            '</div>';
+    }
+
+    if (metrics.netMargin != null) {
+        var nmClass = metrics.netMargin >= 20 ? 'good' : metrics.netMargin >= 10 ? 'mid' : 'bad';
+        metricsHtml += '<div class="bm-metric">' +
+            '<div class="bm-metric-label">净利率</div>' +
+            '<div class="bm-metric-value ' + nmClass + '">' + metrics.netMargin.toFixed(1) + '%</div>' +
+            '</div>';
+    }
+
+    if (metrics.roe != null) {
+        var roeClass = metrics.roe >= 15 ? 'good' : metrics.roe >= 8 ? 'mid' : 'bad';
+        metricsHtml += '<div class="bm-metric">' +
+            '<div class="bm-metric-label">ROE</div>' +
+            '<div class="bm-metric-value ' + roeClass + '">' + metrics.roe.toFixed(1) + '%</div>' +
+            '</div>';
+    }
+
+    metricsEl.innerHTML = metricsHtml;
+
+    // 分析理由
+    var reasonsHtml = '';
+    if (bm.reasons && bm.reasons.length > 0) {
+        for (var i = 0; i < bm.reasons.length; i++) {
+            var reason = bm.reasons[i];
+            // 判断是正面还是负面
+            var isPositive = reason.indexOf('低毛利') === -1 && reason.indexOf('较低') === -1 && reason.indexOf('有限') === -1 && reason.indexOf('激烈') === -1;
+            var iconClass = isPositive ? 'good' : 'bad';
+            var icon = isPositive ? '✓' : '⚠';
+            reasonsHtml += '<div class="bm-reason">' +
+                '<span class="bm-reason-icon ' + iconClass + '">' + icon + '</span>' +
+                '<span>' + reason + '</span>' +
+                '</div>';
+        }
+    }
+    reasonsEl.innerHTML = reasonsHtml;
 }
 
 // ==================== AI 智能分析 ====================

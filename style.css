@@ -982,6 +982,96 @@ html, body {
     border-radius: 10px;
 }
 
+/* ==================== 生意模式分析卡片 ==================== */
+.bm-category-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.bm-badge {
+    font-size: 16px;
+    font-weight: 700;
+    padding: 6px 16px;
+    border-radius: 20px;
+    color: #fff;
+    letter-spacing: 1px;
+}
+
+.bm-badge.bm-top {
+    background: linear-gradient(135deg, #43A047, #66BB6A);
+    box-shadow: 0 2px 8px rgba(67, 160, 71, 0.3);
+}
+
+.bm-badge.bm-mid {
+    background: linear-gradient(135deg, #FB8C00, #FFA726);
+    box-shadow: 0 2px 8px rgba(251, 140, 0, 0.3);
+}
+
+.bm-badge.bm-hard {
+    background: linear-gradient(135deg, #E53935, #EF5350);
+    box-shadow: 0 2px 8px rgba(229, 57, 53, 0.3);
+}
+
+.bm-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.bm-metrics {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.bm-metric {
+    flex: 1;
+    text-align: center;
+    padding: 10px 6px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+}
+
+.bm-metric-label {
+    font-size: 11px;
+    color: var(--text-hint);
+    margin-bottom: 4px;
+}
+
+.bm-metric-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.bm-metric-value.good { color: var(--green); }
+.bm-metric-value.mid { color: var(--orange); }
+.bm-metric-value.bad { color: var(--red); }
+
+.bm-reasons {
+    padding-top: 4px;
+}
+
+.bm-reason {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 6px;
+}
+
+.bm-reason-icon {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.bm-reason-icon.good { color: var(--green); }
+.bm-reason-icon.bad { color: var(--red); }
+
 /* ==================== 设置弹窗 ==================== */
 .modal-overlay {
     position: fixed;
