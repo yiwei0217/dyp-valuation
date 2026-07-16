@@ -47,14 +47,27 @@ function createRpcClient() {
 // ==================== 工具函数 ====================
 
 function sha256(text) {
-    if (!text) return '';
-    return new Promise(function(resolve) {
-        var encoder = new TextEncoder();
-        var data = encoder.encode(text);
-        crypto.subtle.digest('SHA-256', data).then(function(hashBuffer) {
-            var hashArray = Array.from(new Uint8Array(hashBuffer));
-            resolve(hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).join(''));
-        });
+    if (!text) return Promise.resolve('');
+    return new Promise(function(resolve, reject) {
+        try {
+            if (!window.crypto || !window.crypto.subtle) {
+                reject(new Error('浏览器不支持安全加密，请使用 HTTPS 或更新浏览器'));
+                return;
+            }
+            var encoder = new TextEncoder();
+            var data = encoder.encode(text);
+            crypto.subtle.digest('SHA-256', data).then(function(hashBuffer) {
+                var hashArray = Array.from(new Uint8Array(hashBuffer));
+                resolve(hashArray.map(function(b) {
+                    var h = b.toString(16);
+                    return h.length === 1 ? '0' + h : h;
+                }).join(''));
+            }).catch(function(err) {
+                reject(new Error('加密失败: ' + err.message));
+            });
+        } catch(err) {
+            reject(new Error('加密异常: ' + err.message));
+        }
     });
 }
 
@@ -188,6 +201,19 @@ function showScreen(name) {
     }
 }
 
+// 带超时的 RPC 调用
+function rpcWithTimeout(functionName, params, timeoutMs) {
+    timeoutMs = timeoutMs || 10000;
+    return Promise.race([
+        supabase.rpc(functionName, params),
+        new Promise(function(_, reject) {
+            setTimeout(function() {
+                reject(new Error('请求超时，请检查网络后重试'));
+            }, timeoutMs);
+        })
+    ]);
+}
+
 // ==================== 登录 ====================
 async function handleLogin() {
     var username = document.getElementById('login-username').value.trim();
@@ -198,12 +224,18 @@ async function handleLogin() {
 
     showToast('登录中...', 10000);
 
-    var passwordHash = await sha256(password);
+    try {
+        var passwordHash = await sha256(password);
+    } catch (err) {
+        console.error('SHA-256 error:', err);
+        showToast('加密失败：' + err.message);
+        return;
+    }
 
     try {
         if (useSupabase && supabase) {
-            // Supabase 模式
-            var { data, error } = await supabase.rpc('login_user', {
+            // Supabase 模式 - 带超时
+            var { data, error } = await rpcWithTimeout('login_user', {
                 p_username: username,
                 p_password_hash: passwordHash
             });
@@ -223,7 +255,7 @@ async function handleLogin() {
                 showToast('用户名或密码错误');
             }
         } else {
-            // localStorage 模式
+            // localStorage 模式（仅离线时使用）
             var users = getLocalUsers();
             var key = username.toLowerCase();
             if (users[key] && users[key].passwordHash === passwordHash) {
@@ -240,14 +272,7 @@ async function handleLogin() {
         }
     } catch (err) {
         console.error('登录失败:', err);
-        // Supabase 失败则降级到 localStorage
-        if (useSupabase) {
-            useSupabase = false;
-            showToast('云端连接失败，尝试本地登录...');
-            handleLogin();
-            return;
-        }
-        showToast('登录失败：' + (err.message || '网络错误'));
+        showToast('登录失败：' + (err.message || '网络错误，请稍后重试'));
     }
 }
 
@@ -268,12 +293,18 @@ async function handleRegister() {
 
     showToast('注册中...', 10000);
 
-    var passwordHash = await sha256(password);
+    try {
+        var passwordHash = await sha256(password);
+    } catch (err) {
+        console.error('SHA-256 error:', err);
+        showToast('加密失败：' + err.message);
+        return;
+    }
 
     try {
         if (useSupabase && supabase) {
             // 验证邀请码
-            var { data: validData, error: validErr } = await supabase.rpc('validate_invite_code', {
+            var { data: validData, error: validErr } = await rpcWithTimeout('validate_invite_code', {
                 p_code: inviteCode
             });
 
@@ -284,7 +315,7 @@ async function handleRegister() {
             }
 
             // 注册
-            var { data: regData, error: regErr } = await supabase.rpc('register_user', {
+            var { data: regData, error: regErr } = await rpcWithTimeout('register_user', {
                 p_username: username,
                 p_password_hash: passwordHash,
                 p_code: inviteCode
@@ -319,13 +350,7 @@ async function handleRegister() {
         }
     } catch (err) {
         console.error('注册失败:', err);
-        if (useSupabase) {
-            useSupabase = false;
-            showToast('云端连接失败，尝试本地注册...');
-            handleRegister();
-            return;
-        }
-        showToast('注册失败：' + (err.message || '网络错误'));
+        showToast('注册失败：' + (err.message || '网络错误，请稍后重试'));
     }
 }
 
@@ -350,11 +375,17 @@ async function handleForgotPassword() {
 
     showToast('重置中...', 10000);
 
-    var passwordHash = await sha256(password);
+    try {
+        var passwordHash = await sha256(password);
+    } catch (err) {
+        console.error('SHA-256 error:', err);
+        showToast('加密失败：' + err.message);
+        return;
+    }
 
     try {
         if (useSupabase && supabase) {
-            var { data, error } = await supabase.rpc('reset_user_password', {
+            var { data, error } = await rpcWithTimeout('reset_user_password', {
                 p_username: username,
                 p_invite_code: inviteCode,
                 p_new_password_hash: passwordHash
