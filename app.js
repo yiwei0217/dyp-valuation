@@ -897,6 +897,16 @@ function showBusinessModel(bm) {
     if (metrics.profitGrowth != null) addMetric('净利增长', metrics.profitGrowth, 20, 0);
     if (metrics.ocfSalesRatio != null) addMetric('现金流/营收', metrics.ocfSalesRatio, 30, 10);
 
+    // 多年护城河指标
+    var hm = bm.historyMetrics;
+    if (hm && hm.avgRoe != null) {
+        var hmCls = hm.avgRoe >= 15 ? 'good' : hm.avgRoe >= 8 ? 'mid' : 'bad';
+        metricsHtml += '<div class="bm-metric">' +
+            '<div class="bm-metric-label">' + hm.totalYears + '年均ROE</div>' +
+            '<div class="bm-metric-value ' + hmCls + '">' + hm.avgRoe.toFixed(1) + '%</div>' +
+            '</div>';
+    }
+
     metricsEl.innerHTML = metricsHtml;
 
     // 分析理由（用 type 字段决定图标和颜色）
