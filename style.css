@@ -1109,12 +1109,14 @@ html, body {
 
 .bm-metrics {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 14px;
 }
 
 .bm-metric {
-    flex: 1;
+    flex: 1 1 calc(33.333% - 8px);
+    min-width: 70px;
     text-align: center;
     padding: 10px 6px;
     border-radius: var(--radius-sm);
@@ -1158,6 +1160,9 @@ html, body {
 
 .bm-reason-icon.good { color: var(--green); }
 .bm-reason-icon.bad { color: var(--red); }
+.bm-reason-icon.negative { color: var(--red); }
+.bm-reason-icon.warning { color: var(--orange); }
+.bm-reason-icon.info { color: var(--text-hint); }
 
 /* ==================== 设置弹窗 ==================== */
 .modal-overlay {

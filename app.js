@@ -868,48 +868,48 @@ function showBusinessModel(bm) {
     badge.className = 'bm-badge bm-' + bm.categoryKey;
     desc.textContent = bm.description;
 
-    // 财务指标
+    // 财务指标（展示所有可用指标）
     var metrics = bm.metrics || {};
     var metricsHtml = '';
 
-    if (metrics.grossMargin != null) {
-        var gmClass = metrics.grossMargin >= 50 ? 'good' : metrics.grossMargin >= 20 ? 'mid' : 'bad';
+    function addMetric(label, value, goodThreshold, midThreshold, suffix) {
+        if (value == null) return;
+        var cls = value >= goodThreshold ? 'good' : value >= midThreshold ? 'mid' : 'bad';
         metricsHtml += '<div class="bm-metric">' +
-            '<div class="bm-metric-label">毛利率</div>' +
-            '<div class="bm-metric-value ' + gmClass + '">' + metrics.grossMargin.toFixed(1) + '%</div>' +
+            '<div class="bm-metric-label">' + label + '</div>' +
+            '<div class="bm-metric-value ' + cls + '">' + value.toFixed(1) + (suffix || '%') + '</div>' +
             '</div>';
     }
 
-    if (metrics.netMargin != null) {
-        var nmClass = metrics.netMargin >= 20 ? 'good' : metrics.netMargin >= 10 ? 'mid' : 'bad';
+    addMetric('毛利率', metrics.grossMargin, 40, 25);
+    addMetric('净利率', metrics.netMargin, 15, 5);
+    addMetric('ROE', metrics.roe, 15, 8);
+    if (metrics.roic != null) addMetric('ROIC', metrics.roic, 12, 8);
+    if (metrics.debtRatio != null) {
+        // 负债率越低越好，反转逻辑
+        var drCls = metrics.debtRatio <= 30 ? 'good' : metrics.debtRatio <= 60 ? 'mid' : 'bad';
         metricsHtml += '<div class="bm-metric">' +
-            '<div class="bm-metric-label">净利率</div>' +
-            '<div class="bm-metric-value ' + nmClass + '">' + metrics.netMargin.toFixed(1) + '%</div>' +
+            '<div class="bm-metric-label">资产负债率</div>' +
+            '<div class="bm-metric-value ' + drCls + '">' + metrics.debtRatio.toFixed(1) + '%</div>' +
             '</div>';
     }
-
-    if (metrics.roe != null) {
-        var roeClass = metrics.roe >= 15 ? 'good' : metrics.roe >= 8 ? 'mid' : 'bad';
-        metricsHtml += '<div class="bm-metric">' +
-            '<div class="bm-metric-label">ROE</div>' +
-            '<div class="bm-metric-value ' + roeClass + '">' + metrics.roe.toFixed(1) + '%</div>' +
-            '</div>';
-    }
+    if (metrics.revGrowth != null) addMetric('营收增长', metrics.revGrowth, 15, 0);
+    if (metrics.profitGrowth != null) addMetric('净利增长', metrics.profitGrowth, 20, 0);
+    if (metrics.ocfSalesRatio != null) addMetric('现金流/营收', metrics.ocfSalesRatio, 30, 10);
 
     metricsEl.innerHTML = metricsHtml;
 
-    // 分析理由
+    // 分析理由（用 type 字段决定图标和颜色）
     var reasonsHtml = '';
     if (bm.reasons && bm.reasons.length > 0) {
         for (var i = 0; i < bm.reasons.length; i++) {
             var reason = bm.reasons[i];
-            // 判断是正面还是负面
-            var isPositive = reason.indexOf('低毛利') === -1 && reason.indexOf('较低') === -1 && reason.indexOf('有限') === -1 && reason.indexOf('激烈') === -1;
-            var iconClass = isPositive ? 'good' : 'bad';
-            var icon = isPositive ? '✓' : '⚠';
+            var type = reason.type || 'info';
+            var iconMap = { positive: '✓', negative: '✗', warning: '⚠', info: '·' };
+            var icon = iconMap[type] || '·';
             reasonsHtml += '<div class="bm-reason">' +
-                '<span class="bm-reason-icon ' + iconClass + '">' + icon + '</span>' +
-                '<span>' + reason + '</span>' +
+                '<span class="bm-reason-icon ' + type + '">' + icon + '</span>' +
+                '<span>' + reason.text + '</span>' +
                 '</div>';
         }
     }
