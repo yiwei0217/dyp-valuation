@@ -763,7 +763,10 @@ async function searchStock() {
     } catch (err) {
         console.error('searchStock error:', err);
         var errEl = document.getElementById('search-error-msg');
-        errEl.textContent = err.message || '查询失败，请稍后重试';
+        // 如果后端错误信息意外包含 HTML 标签，剥掉以免给用户看技术细节
+        var rawMsg = err.message || '查询失败，请稍后重试';
+        var friendlyMsg = /<[^>]+>/.test(rawMsg) ? '行情服务暂不可用，请稍后重试或手动输入' : rawMsg;
+        errEl.textContent = friendlyMsg;
         errorEl.classList.remove('hidden');
         // 隐藏生意模式区域
         document.getElementById('business-model-section').classList.add('hidden');
