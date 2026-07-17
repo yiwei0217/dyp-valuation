@@ -484,6 +484,7 @@ function calculate() {
 
     updateDetailTable(yearlyData, totalPV, perpetualPV);
     updateEvaluation(premiumRate, price, safeBuyPrice, intrinsicValuePerShare);
+    updatePriceZoneTable(price, safeBuyPrice, intrinsicValuePerShare);
 }
 
 function formatMoney(value) {
@@ -559,6 +560,83 @@ function updateEvaluation(premiumRate, price, safeBuyPrice, intrinsicValue) {
     card.classList.add(colorClass);
     icon.textContent = '\u25CF';
     icon2.textContent = '\u25CF';
+}
+
+// ==================== 价格区间表 ====================
+function updatePriceZoneTable(price, safeBuyPrice, intrinsicValue) {
+    var container = document.getElementById('price-zone-rows');
+    var card = document.getElementById('price-zone-card');
+
+    if (!container || !card) return;
+
+    if (safeBuyPrice <= 0 || intrinsicValue <= 0) {
+        card.classList.add('hidden');
+        return;
+    }
+    card.classList.remove('hidden');
+
+    // 确保安全价不超过内在价值
+    if (safeBuyPrice > intrinsicValue) {
+        safeBuyPrice = intrinsicValue * 0.7;
+    }
+
+    var zones = [];
+
+    if (price <= safeBuyPrice) {
+        // 现价在错杀底区（含等于安全价）
+        zones = [
+            { low: null, high: safeBuyPrice, label: '极致安全错杀底', action: '闲钱小仓位布局，不重仓不加杠杆', key: 'zone-kill-bottom', isCurrent: true },
+            { low: safeBuyPrice, high: intrinsicValue, label: '合理低估区间', action: '可底仓配置，适合长期吃分红', key: 'zone-undervalued', isCurrent: false },
+            { low: intrinsicValue, high: null, label: '情绪溢价高估区', action: '坚决不追高，高估绝不入场', key: 'zone-overvalued', isCurrent: false }
+        ];
+    } else if (price < intrinsicValue) {
+        // 现价在合理低估与中枢顶区之间
+        zones = [
+            { low: null, high: safeBuyPrice, label: '极致安全错杀底', action: '闲钱小仓位布局，不重仓不加杠杆', key: 'zone-kill-bottom', isCurrent: false },
+            { low: safeBuyPrice, high: price, label: '合理低估区间', action: '可底仓配置，适合长期吃分红', key: 'zone-undervalued', isCurrent: true },
+            { low: price, high: intrinsicValue, label: '价值中枢顶区', action: '只持股不加仓，逢高小幅减仓', key: 'zone-fair', isCurrent: false },
+            { low: intrinsicValue, high: null, label: '情绪溢价高估区', action: '坚决不追高，高估绝不入场', key: 'zone-overvalued', isCurrent: false }
+        ];
+    } else if (price > intrinsicValue) {
+        // 现价已在高估区
+        zones = [
+            { low: null, high: safeBuyPrice, label: '极致安全错杀底', action: '闲钱小仓位布局，不重仓不加杠杆', key: 'zone-kill-bottom', isCurrent: false },
+            { low: safeBuyPrice, high: intrinsicValue, label: '合理低估区间', action: '可底仓配置，适合长期吃分红', key: 'zone-undervalued', isCurrent: false },
+            { low: intrinsicValue, high: price, label: '价值中枢顶区', action: '只持股不加仓，逢高小幅减仓', key: 'zone-fair', isCurrent: false },
+            { low: price, high: null, label: '情绪溢价高估区', action: '坚决不追高，高估绝不入场', key: 'zone-overvalued', isCurrent: true }
+        ];
+    } else {
+        // 现价恰好等于内在价值
+        zones = [
+            { low: null, high: safeBuyPrice, label: '极致安全错杀底', action: '闲钱小仓位布局，不重仓不加杠杆', key: 'zone-kill-bottom', isCurrent: false },
+            { low: safeBuyPrice, high: intrinsicValue, label: '合理低估区间', action: '可底仓配置，适合长期吃分红', key: 'zone-undervalued', isCurrent: true },
+            { low: intrinsicValue, high: null, label: '情绪溢价高估区', action: '坚决不追高，高估绝不入场', key: 'zone-overvalued', isCurrent: false }
+        ];
+    }
+
+    var html = '';
+    for (var i = 0; i < zones.length; i++) {
+        var z = zones[i];
+        var rangeText = '';
+        if (z.low === null && z.high !== null) {
+            rangeText = z.high.toFixed(2) + ' 以下';
+        } else if (z.high === null && z.low !== null) {
+            rangeText = z.low.toFixed(2) + ' 以上';
+        } else if (z.low !== null && z.high !== null) {
+            rangeText = z.low.toFixed(2) + '-' + z.high.toFixed(2);
+        }
+        if (z.isCurrent) {
+            rangeText += '<span class="current-tag">现价</span>';
+        }
+
+        var rowClass = 'price-zone-row ' + z.key + (z.isCurrent ? ' current-row' : '');
+        html += '<div class="' + rowClass + '">';
+        html += '<span class="col-range">' + rangeText + '</span>';
+        html += '<span class="col-judge">' + z.label + '</span>';
+        html += '<span class="col-action">' + z.action + '</span>';
+        html += '</div>';
+    }
+    container.innerHTML = html;
 }
 
 // ==================== 初始化 ====================

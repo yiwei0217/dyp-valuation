@@ -550,6 +550,90 @@ html, body {
 .eval-high { color: var(--green); }
 .eval-high .eval-advice { background: var(--green-light); color: var(--green); }
 
+/* ==================== 价格区间表 ==================== */
+.price-zone-card {
+    padding: 16px;
+    margin-top: 14px;
+}
+
+.price-zone-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 12px;
+}
+
+.price-zone-table {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    font-size: 13px;
+}
+
+.price-zone-header {
+    display: flex;
+    padding: 10px 12px;
+    background: var(--primary-bg);
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.price-zone-row {
+    display: flex;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card-bg);
+    align-items: center;
+}
+
+.price-zone-row:last-child {
+    border-bottom: none;
+}
+
+.price-zone-row.current-row {
+    background: #FFF8E1;
+    border-left: 3px solid var(--orange);
+}
+
+.col-range {
+    width: 90px;
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.col-judge {
+    width: 100px;
+    flex-shrink: 0;
+    padding: 0 8px;
+    font-weight: 600;
+}
+
+.col-action {
+    flex: 1;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.price-zone-row .col-range .current-tag {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 1px 5px;
+    background: var(--orange);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+/* 区间颜色 */
+.zone-kill-bottom .col-judge { color: var(--red); }
+.zone-undervalued .col-judge { color: var(--primary-light); }
+.zone-fair .col-judge { color: var(--orange); }
+.zone-overvalued .col-judge { color: var(--green); }
+
 /* ==================== 详情表格 ==================== */
 .detail-table {
     background: var(--card-bg);
